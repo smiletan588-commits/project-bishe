@@ -1,0 +1,57 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/store/user'
+
+const routes = [
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/Login.vue'),
+    meta: { guest: true }
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views/Dashboard.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/project/:id',
+    name: 'TaskList',
+    component: () => import('@/views/TaskList.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/project/:id/wiki',
+    name: 'WikiView',
+    component: () => import('@/views/WikiView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/analytics',
+    name: 'Analytics',
+    component: () => import('@/views/Analytics.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/',
+    redirect: '/dashboard'
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+router.beforeEach((to, from, next) => {
+  const userStore = useUserStore()
+  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
+    next('/login')
+  } else if (to.meta.guest && userStore.isLoggedIn) {
+    next('/dashboard')
+  } else {
+    next()
+  }
+})
+
+export default router

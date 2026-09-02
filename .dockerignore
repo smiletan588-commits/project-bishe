@@ -1,0 +1,30 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+.claude/
+
+# Git
+.git/
+.gitignore
+
+# Frontend (不需要在后端镜像中)
+kanban-frontend/
+node_modules/
+
+# Build artifacts (只保留 target/app.jar)
+target/classes/
+target/generated-sources/
+target/generated-test-sources/
+target/maven-status/
+target/maven-archiver/
+target/surefire-reports/
+target/test-classes/
+
+# Docs
+*.md
+!project_history.md
+
+# Misc
+提示词.txt
+选题思路.txt

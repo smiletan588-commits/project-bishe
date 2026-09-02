@@ -1,0 +1,114 @@
+四、 准备发给 Claude 的阶段性开发提示词（Prompts）
+（注：以下提示词可根据进度逐步复制并发送给 Claude，以保持生成的代码质量和专注度。）
+提示词 1：初始化后端项目与通用类封装
+发送给 Claude：
+"你好！我正在搭建一个基于 Spring Boot 3 + JDK 17 + MyBatis-Plus + MySQL 8.0 的‘智能项目管理与看板系统’后端。
+请协助我完成项目初始化的通用类编写，具体包括：
+提供一个统一返回结果封装类 R.java（包含状态码 code, 消息 msg, 数据 data）。
+编写全局异常处理机制，包含自定义异常类 BusinessException 和全局异常拦截器 GlobalExceptionHandler。
+提供基于 JWT 的简单生成与解析工具类 JWTUtil.java（不依赖复杂的 Security 框架，先手动使用拦截器拦截，保持代码轻量）。
+请给出完整的 Java 代码和对应的目录结构建议。"
+提示词 2：用户模块实现（注册/登录）
+发送给 Claude：
+"我们继续开发后端。基于数据库中的 sys_user 表，请帮我实现用户注册与登录功能：
+编写 User 实体类（请使用 Lombok 简化代码，对应 sys_user 表）。
+编写 UserMapper、UserService 及其实现类。
+密码在数据库中必须进行 MD5 或 BCrypt 加密存储。
+编写 UserController，暴露两个接口：
+POST /api/user/register：接收用户名、密码、昵称进行注册，校验用户名唯一性。
+POST /api/user/login：校验账号密码，验证成功后返回 JWT Token、用户名和用户ID。
+编写一个基础的 LoginInterceptor 拦截器，校验 Header 中的 Authorization 并解析 Token，将其放入 ThreadLocal（编写一个 UserHolder 工具类）以便后续业务获取当前登录用户。
+请提供完整的实现代码。"
+提示词 3：项目与任务 CRUD 业务实现
+发送给 Claude：
+"我们继续。现在用户已经可以通过 JWT 正常登录了。接下来请帮我实现‘项目（Project）’和‘任务（Task）’的业务接口。
+需求如下：
+实体类：创建 Project 实体和 Task 实体。
+拦截器应用：确保这些接口只能在用户登录后访问（拦截器已在上一阶段写好）。
+项目管理接口 (ProjectController)：
+POST /api/project/create：创建新项目，创建者自动设为当前登录用户。
+GET /api/project/list：查询当前登录用户创建的所有项目。
+DELETE /api/project/{id}：删除项目（需校验是否为创建者本人）。
+任务管理接口 (TaskController)：
+POST /api/task/create：在指定项目下创建任务，默认状态为 TODO。
+GET /api/task/list/{projectId}：查询指定项目下的所有任务。
+PUT /api/task/update：更新任务状态（TODO, IN_PROGRESS, DONE）、标题、描述或负责人。
+DELETE /api/task/{id}：删除任务。
+请提供完整的 Mapper, Service 及其实现类和 Controller 的代码。"
+提示词 4：前端 Vue 3 脚手架搭建与请求封装
+发送给 Claude：
+"后端接口已初步就绪。现在我们需要开始搭建 Vue 3 + Vite 的前端。
+请协助我：
+给出搭建项目所需的 package.json 依赖配置（包含 vue, vue-router, pinia, element-plus, axios）。
+编写 src/utils/request.js。利用 Axios 创建实例并配置拦截器：
+请求拦截器：自动从 LocalStorage 或 Pinia 中获取 Token 并添加到 Request Header 中。
+响应拦截器：统一处理 401（未登录跳转到登录页）、500 等异常，并使用 Element Plus 的 ElMessage 弹出错误提示。
+编写 Pinia 的 src/store/user.js，保存用户的 Token、用户基本信息，并提供 login、logout 的 action。
+请提供详细的代码和配置步骤。"
+提示词 5：前端登录、项目列表、任务表格页开发
+发送给 Claude：
+"我们进入第一阶段的尾声，开始编写 Vue 3 的页面和路由逻辑。
+需求包括：
+路由配置 (src/router/index.js)：
+包含 /login（登录页）、/dashboard（项目列表）、/project/:id（任务列表页）。
+配置路由守卫：未登录的用户访问除 /login 以外的路由一律重定向至 /login。
+页面组件：
+Login.vue：简单的登录/注册切换表单。
+Dashboard.vue：展示当前用户的项目列表，支持弹窗新建项目，点击项目卡片可跳转进入项目详情（路由为 /project/:id）。
+TaskList.vue：展示该项目下的所有任务。采用 Element Plus 的表格（el-table）组件，显示任务标题、描述、状态、截止日期，支持点击按钮弹窗修改状态（下拉选择：TODO, IN_PROGRESS, DONE）或删除任务，提供新建任务表单。
+请使用 Vue 3 的 <script setup> 语法、Composition API 和 Element Plus 给出这三个页面的完整组件代码。"
+
+
+二、 准备发给 Claude 的第二阶段提示词（Prompts）
+提示词 1：后端拖拽更新接口设计
+发送给 Claude：
+"你好！我们已经完成了看板系统的第一阶段。现在开始进行第二阶段开发。
+首先，我需要你帮我实现后端关于任务拖拽排序的 API。
+当用户在前端拖拽一个任务卡片时，卡片可能会从‘列 A’移动到‘列 B’，并且其在‘列 B’中的上下位置（即 order_index）会发生变化。这也意味着，目标列中该位置之后的其他任务的 order_index 都需要顺延或重新计算。
+请协助我：
+编写一个更新任务状态和排序的业务接口：PUT /api/task/drag。
+接收参数为一个 DTO，包含：taskId (被拖动的任务ID), targetStatus (目标状态列), targetOrderIndex (拖动后的新排序索引)。
+编写 TaskServiceImpl 中的核心算法：
+当任务在同列中移动时，更新受影响范围内的任务 order_index。
+当任务跨列移动时，更新源列受影响任务的 order_index，并插入到目标列的指定位置，同时更新目标列受影响任务的 order_index。
+以上操作必须在同一个数据库事务 (@Transactional) 中完成，以防数据不一致。
+请提供完整的 Controller、Service 层的 Java 实现代码，并解释你的排序重置算法逻辑。"
+提示词 2：前端看板布局与拖拽组件集成
+发送给 Claude：
+"后端拖拽接口已写好。现在我们需要将前端的 TaskList.vue（原来的表格视图）改造成真正的可视化拖拽看板。
+请协助我：
+推荐一个适用于 Vue 3 的轻量级拖拽库（例如基于 SortableJS 的 vuedraggable 或其兼容 Vue 3 的分支），并给出安装指令。
+重新编写 TaskList.vue：
+看板页面需要分为三个并排的列容器：待处理 (TODO)、进行中 (IN_PROGRESS)、已完成 (DONE)。
+在 Vue 页面中将获取到的任务数组按照 status 过滤，并在各个列中按 order_index 升序排列。
+集成拖拽组件，使用户可以将卡片在不同列之间拖拽，或者在单列内部上下调整顺序。
+当拖拽结束时（触发 end 或 change 事件），自动计算出被拖动卡片的新 status 和 order_index，并调用后端 PUT /api/task/drag 接口进行保存。
+为每个卡片设计一个简单精美、带有 Element Plus 卡片样式的 UI。
+请提供完整的 Vue 3 页面代码，并确保代码中使用 <script setup> 语法。"
+提示词 3：后端集成 WebSocket
+发送给 Claude：
+"拖拽功能已经能够在单机上正常工作了。为了实现多用户实时协同，当一个用户移动卡片时，其他正在查看当前项目的用户的看板也需要实时同步。我们决定使用 WebSocket 来实现。
+请协助我：
+在 Spring Boot 中引入并配置 WebSocket 依赖，编写 WebSocketConfig.java。
+编写一个轻量级的 TaskWebSocketHandler.java（继承自 TextWebSocketHandler）：
+维护一个在线 Session 映射关系，建议按照 projectId 进行分组，将连接到同一个项目看板的用户 Session 绑定在一起。
+当用户连接时，解析路径中的 projectId（例如：ws://localhost:8080/ws/project/{projectId}）。
+提供一个广播方法，当某一个用户在该项目下触发了任务更新、拖拽或新建时，向同一项目下的所有其他在线用户广播一条简单的 JSON 消息（例如：{"type": "TASK_UPDATED"}）。
+修改之前的 TaskController 中的 drag、create、delete 接口，在更新数据库成功后，自动调用 WebSocket 广播机制。
+请提供完整的 Java 配置类和 Handler 类代码。"
+提示词 4：前端 Vue 3 集成 WebSocket 实时刷新
+发送给 Claude：
+"后端 WebSocket 服务已准备就绪，能在任务变动时广播消息。现在我们需要在前端 TaskList.vue 中接入 WebSocket 机制。
+请协助我更新 TaskList.vue 的逻辑：
+当用户进入某个具体项目的任务看板页（mounted 或 onMounted 钩子内）时，建立与后端的 WebSocket 连接。连接地址包含当前项目的 projectId，并带上当前用户的 Token 以作安全识别（若暂不安全认证，可先仅带 projectId）。
+封装 WebSocket 连接逻辑，包含自动重连机制（防止网络抖动断开）。
+当收到 WebSocket 推送的变更消息（如 TASK_UPDATED）时，无需刷新整个网页，直接在后台重新调用接口拉取该项目最新的任务列表，从而更新看板上的卡片位置和内容。
+当用户离开该页面（onUnmounted）时，主动关闭 WebSocket 连接，释放系统资源。
+请提供修改后的 <script setup> 部分代码，并详细说明如何处理连接建立、重连和清理销毁的生命周期逻辑。"
+三、 第二阶段开发建议
+分步攻克：
+先搞定 提示词 1 & 提示词 2（拖拽保存）。在这期间，您可以通过开两个不同的浏览器窗口，手动刷新来验证拖拽后数据是否能在数据库和另一个页面上更新正确。
+再攻克 提示词 3 & 提示词 4（WebSocket 实时协同）。这一步完成后，您再开两个浏览器窗口拖动卡片，就能亲眼见证“一端拖拽，另一端跟着自动位移”的协同效果了。
+关于排序算法的容错：
+计算 order_index 时，Claude 可能会给您提供不同的算法（例如：重新将全列从 0 开始升序编号，或者取前后卡片权重的中间值）。对于练习项目，每次移动后，将该列所有任务重新进行 0, 1, 2, 3... 的重排更新是最直观且不易出错的做法。您可以提示 Claude 采用这种方案。
+祝您第二阶段开发一切顺利，随时可以开始将提示词发给您的 Claude 助手了！如果有任何步骤卡壳，请随时回来找我。

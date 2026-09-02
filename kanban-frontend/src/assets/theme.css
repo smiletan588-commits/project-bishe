@@ -1,0 +1,55 @@
+/* === Design Tokens — SmartPM Kanban === */
+:root {
+  /* Background */
+  --bg-base: #F1F5F9;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F8FAFC;
+
+  /* Brand */
+  --brand: #6366F1;
+  --brand-deep: #4F46E5;
+  --brand-light: #EEF2FF;
+  --brand-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+
+  /* Status colors */
+  --todo: #F59E0B;
+  --todo-bg: #FFFBEB;
+  --progress: #3B82F6;
+  --progress-bg: #EFF6FF;
+  --done: #10B981;
+  --done-bg: #ECFDF5;
+
+  /* Text */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-tertiary: #94A3B8;
+
+  /* Border & Shadow */
+  --border: #E2E8F0;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.06), 0 4px 6px -4px rgba(0,0,0,0.04);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  /* Typography */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+}
+
+/* Global reset */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+}

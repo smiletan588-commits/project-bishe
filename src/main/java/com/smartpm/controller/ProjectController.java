@@ -1,0 +1,146 @@
+package com.smartpm.controller;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.smartpm.common.result.R;
+import com.smartpm.entity.Project;
+import com.smartpm.entity.ProjectMember;
+import com.smartpm.entity.User;
+import com.smartpm.mapper.ProjectMemberMapper;
+import com.smartpm.mapper.UserMapper;
+import com.smartpm.service.ProjectService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/project")
+@RequiredArgsConstructor
+public class ProjectController {
+
+    private final ProjectService projectService;
+    private final ProjectMemberMapper projectMemberMapper;
+    private final UserMapper userMapper;
+
+    @PostMapping("/create")
+    public R<Project> create(@RequestParam String name,
+                             @RequestParam(required = false) String description) {
+        Project project = projectService.create(name, description);
+        return R.ok(project);
+    }
+
+    @GetMapping("/list")
+    public R<List<Project>> list() {
+        List<Project> projects = projectService.list();
+        return R.ok(projects);
+    }
+
+    @PutMapping("/update")
+    public R<Project> update(@RequestParam Long id,
+                             @RequestParam(required = false) String name,
+                             @RequestParam(required = false) String description) {
+        Project project = projectService.update(id, name, description);
+        return R.ok(project);
+    }
+
+    @DeleteMapping("/{id}")
+    public R<Void> delete(@PathVariable Long id) {
+        projectService.delete(id);
+        return R.ok();
+    }
+
+    /**
+     * 获取项目成员列表（含昵称和身份），用于前端角色标签渲染。
+     */
+    @GetMapping("/{projectId}/members")
+    public R<List<Map<String, Object>>> members(@PathVariable Long projectId) {
+        List<ProjectMember> members = projectMemberMapper.selectList(
+                new LambdaQueryWrapper<ProjectMember>().eq(ProjectMember::getProjectId, projectId));
+        if (members.isEmpty()) return R.ok(List.of());
+
+        List<Long> userIds = members.stream().map(ProjectMember::getUserId).collect(Collectors.toList());
+        List<User> users = userMapper.selectBatchIds(userIds);
+        Map<Long, User> userMap = users.stream().collect(Collectors.toMap(User::getId, u -> u));
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ProjectMember m : members) {
+            User u = userMap.get(m.getUserId());
+            if (u == null) continue;
+            Map<String, Object> item = new HashMap<>();
+            item.put("userId", u.getId());
+            item.put("username", u.getUsername());
+            item.put("nickname", u.getNickname());
+            item.put("identity", u.getIdentity());
+            result.add(item);
+        }
+        return R.ok(result);
+    }
+
+    /**
+     * AI 项目周报 — SSE 流式推送。
+     * 超时 300 秒，兼容大模型较长响应。
+     * 三层异常防护：
+     *   1. generateSummary() 同步异常 → catch 后通过 SSE 推送 [ERROR]
+     *   2. Flux 异步 error → subscribe error 回调 → SSE 推送 [ERROR]
+     *   3. SSE 超时 / 连接异常 → onTimeout / onError 回调
+     */
+    @GetMapping(value = "/{projectId}/ai-summary", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter aiSummary(@PathVariable Long projectId) {
+        log.info("[AI-Summary] 收到请求: projectId={}", projectId);
+
+        SseEmitter emitter = new SseEmitter(300_000L);
+
+        try {
+            projectService.generateSummary(projectId).subscribe(
+                    chunk -> {
+                        try {
+                            emitter.send(SseEmitter.event().data(chunk));
+                        } catch (IOException e) {
+                            log.warn("[AI-Summary] SSE 发送失败，客户端可能已断开: {}", e.getMessage());
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    error -> {
+                        log.error("[AI-Summary] 异步流生成异常，具体原因为：", error);
+                        try {
+                            String errMsg = "[ERROR] " + (error.getMessage() != null
+                                    ? error.getMessage() : "未知错误");
+                            emitter.send(SseEmitter.event().data(errMsg));
+                        } catch (IOException ignored) {
+                            // 客户端可能已断开
+                        }
+                        emitter.completeWithError(error);
+                    },
+                    () -> {
+                        log.info("[AI-Summary] 流式响应完成 projectId={}", projectId);
+                        emitter.complete();
+                    }
+            );
+        } catch (Exception e) {
+            // 捕获 generateSummary() 的同步异常（如项目不存在）
+            log.error("[AI-Summary] 同步初始化失败，具体原因为：", e);
+            try {
+                String errMsg = "[ERROR] " + (e.getMessage() != null ? e.getMessage() : "系统异常");
+                emitter.send(SseEmitter.event().data(errMsg));
+            } catch (IOException ignored) {
+            }
+            emitter.completeWithError(e);
+        }
+
+        emitter.onTimeout(() -> {
+            log.warn("[AI-Summary] SSE 超时 projectId={}", projectId);
+            emitter.complete();
+        });
+        emitter.onError(throwable -> {
+            log.error("[AI-Summary] SSE 连接异常 projectId={}", projectId, throwable);
+        });
+
+        return emitter;
+    }
+}
