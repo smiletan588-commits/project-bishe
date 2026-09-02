@@ -8,6 +8,7 @@ import com.smartpm.entity.Wiki;
 import com.smartpm.mapper.ProjectMapper;
 import com.smartpm.mapper.WikiMapper;
 import com.smartpm.service.AIService;
+import com.smartpm.service.ProjectService;
 import com.smartpm.service.WikiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +30,11 @@ public class WikiServiceImpl implements WikiService {
     private final WikiMapper wikiMapper;
     private final ProjectMapper projectMapper;
     private final AIService aiService;
+    private final ProjectService projectService;
 
     @Override
     public Wiki create(Long projectId, String title, String content) {
+        projectService.assertProjectAccess(projectId, true);
         if (title == null || title.isBlank()) {
             throw new BusinessException("文档标题不能为空");
         }
@@ -55,6 +58,7 @@ public class WikiServiceImpl implements WikiService {
 
     @Override
     public List<Map<String, Object>> listByProject(Long projectId) {
+        projectService.assertProjectAccess(projectId, false);
         List<Wiki> wikis = wikiMapper.selectList(
                 new LambdaQueryWrapper<Wiki>()
                         .eq(Wiki::getProjectId, projectId)
@@ -75,6 +79,7 @@ public class WikiServiceImpl implements WikiService {
         if (wiki == null) {
             throw new BusinessException("文档不存在");
         }
+        projectService.assertProjectAccess(wiki.getProjectId(), false);
         return wiki;
     }
 
@@ -84,9 +89,7 @@ public class WikiServiceImpl implements WikiService {
         if (wiki == null) {
             throw new BusinessException("文档不存在");
         }
-        if (!wiki.getCreatorId().equals(UserHolder.getUserId())) {
-            throw new BusinessException("无权修改此文档");
-        }
+        projectService.assertProjectAccess(wiki.getProjectId(), true);
         if (title != null && !title.isBlank()) {
             wiki.setTitle(title);
         }
@@ -105,9 +108,7 @@ public class WikiServiceImpl implements WikiService {
         if (wiki == null) {
             throw new BusinessException("文档不存在");
         }
-        if (!wiki.getCreatorId().equals(UserHolder.getUserId())) {
-            throw new BusinessException("无权删除此文档");
-        }
+        projectService.assertProjectAccess(wiki.getProjectId(), true);
         wikiMapper.deleteById(id);
     }
 

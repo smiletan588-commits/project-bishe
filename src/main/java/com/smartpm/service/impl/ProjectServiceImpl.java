@@ -4,9 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.smartpm.common.exception.BusinessException;
 import com.smartpm.common.utils.UserHolder;
 import com.smartpm.entity.Project;
+import com.smartpm.entity.ProjectMember;
 import com.smartpm.entity.Task;
+import com.smartpm.entity.User;
 import com.smartpm.mapper.ProjectMapper;
+import com.smartpm.mapper.ProjectMemberMapper;
 import com.smartpm.mapper.TaskMapper;
+import com.smartpm.mapper.UserMapper;
 import com.smartpm.service.AIService;
 import com.smartpm.service.ProjectService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +32,8 @@ public class ProjectServiceImpl implements ProjectService {
 
     private final ProjectMapper projectMapper;
     private final TaskMapper taskMapper;
+    private final ProjectMemberMapper projectMemberMapper;
+    private final UserMapper userMapper;
     private final AIService aiService;
 
     @Override
@@ -44,15 +50,28 @@ public class ProjectServiceImpl implements ProjectService {
         project.setUpdatedAt(LocalDateTime.now());
 
         projectMapper.insert(project);
+
+        ProjectMember owner = new ProjectMember();
+        owner.setProjectId(project.getId());
+        owner.setUserId(UserHolder.getUserId());
+        owner.setIdentity(UserHolder.get().getIdentity());
+        owner.setPermission("PROJECT_ADMIN");
+        projectMemberMapper.insert(owner);
         return project;
     }
 
     @Override
     public List<Project> list() {
-        return projectMapper.selectList(
-                new LambdaQueryWrapper<Project>()
-                        .eq(Project::getCreatorId, UserHolder.getUserId())
-                        .orderByDesc(Project::getCreatedAt));
+        Long userId = UserHolder.getUserId();
+        List<Long> memberProjectIds = projectMemberMapper.selectList(
+                new LambdaQueryWrapper<ProjectMember>().eq(ProjectMember::getUserId, userId))
+                .stream().map(ProjectMember::getProjectId).toList();
+        LambdaQueryWrapper<Project> query = new LambdaQueryWrapper<Project>()
+                .eq(Project::getCreatorId, userId);
+        if (!memberProjectIds.isEmpty()) {
+            query.or().in(Project::getId, memberProjectIds);
+        }
+        return projectMapper.selectList(query.orderByDesc(Project::getCreatedAt));
     }
 
     @Override
@@ -61,7 +80,7 @@ public class ProjectServiceImpl implements ProjectService {
         if (project == null) {
             throw new BusinessException("项目不存在");
         }
-        if (!project.getCreatorId().equals(UserHolder.getUserId())) {
+        if (!project.getCreatorId().equals(UserHolder.getUserId()) && !canManageMembers(id)) {
             throw new BusinessException("无权修改此项目");
         }
         if (name != null && !name.isBlank()) {
@@ -95,7 +114,135 @@ public class ProjectServiceImpl implements ProjectService {
             taskMapper.delete(new LambdaQueryWrapper<Task>().in(Task::getParentId, taskIds));
         }
         taskMapper.delete(new LambdaQueryWrapper<Task>().eq(Task::getProjectId, id));
+        projectMemberMapper.delete(new LambdaQueryWrapper<ProjectMember>().eq(ProjectMember::getProjectId, id));
         projectMapper.deleteById(id);
+    }
+
+    @Override
+    public void assertProjectAccess(Long projectId, boolean write) {
+        Project project = projectMapper.selectById(projectId);
+        if (project == null) throw new BusinessException("项目不存在");
+        Long userId = UserHolder.getUserId();
+        if (project.getCreatorId().equals(userId)) return;
+        ProjectMember member = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, userId));
+        if (member == null) throw new BusinessException("您不是该项目成员");
+        if (write && "VIEWER".equals(member.getPermission())) {
+            throw new BusinessException("只读成员不能修改项目内容");
+        }
+    }
+
+    @Override
+    public boolean canManageMembers(Long projectId) {
+        Project project = projectMapper.selectById(projectId);
+        if (project == null) return false;
+        if (project.getCreatorId().equals(UserHolder.getUserId())) return true;
+        ProjectMember member = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, UserHolder.getUserId()));
+        return member != null && "PROJECT_ADMIN".equals(member.getPermission());
+    }
+
+    @Override
+    public Project getByIdForAccess(Long projectId) {
+        Project project = projectMapper.selectById(projectId);
+        if (project == null) throw new BusinessException("项目不存在");
+        return project;
+    }
+
+    @Override
+    @Transactional
+    public void inviteMember(Long projectId, String username, String identity, String permission) {
+        requireManager(projectId);
+        User user = findUser(username);
+        ProjectMember exists = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, user.getId()));
+        if (exists != null) throw new BusinessException("该用户已经是项目成员");
+        ProjectMember member = new ProjectMember();
+        member.setProjectId(projectId);
+        member.setUserId(user.getId());
+        member.setIdentity(validIdentity(identity, user.getIdentity()));
+        member.setPermission(validPermission(permission));
+        member.setJoinedAt(LocalDateTime.now());
+        projectMemberMapper.insert(member);
+    }
+
+    @Override
+    public void updateMember(Long projectId, Long userId, String identity, String permission) {
+        requireManager(projectId);
+        Project project = projectMapper.selectById(projectId);
+        if (project.getCreatorId().equals(userId)) throw new BusinessException("项目负责人请使用转移负责人操作");
+        ProjectMember member = getMember(projectId, userId);
+        if (identity != null) member.setIdentity(validIdentity(identity, null));
+        if (permission != null) member.setPermission(validPermission(permission));
+        projectMemberMapper.updateById(member);
+    }
+
+    @Override
+    public void removeMember(Long projectId, Long userId) {
+        requireManager(projectId);
+        Project project = projectMapper.selectById(projectId);
+        if (project.getCreatorId().equals(userId)) throw new BusinessException("不能移除项目负责人");
+        projectMemberMapper.delete(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, userId));
+    }
+
+    @Override
+    @Transactional
+    public void transferOwner(Long projectId, Long userId) {
+        requireManager(projectId);
+        Project project = projectMapper.selectById(projectId);
+        getMember(projectId, userId);
+        Long oldOwnerId = project.getCreatorId();
+        ProjectMember oldOwner = getOrCreateOwner(projectId, oldOwnerId);
+        oldOwner.setPermission("PROJECT_ADMIN");
+        projectMemberMapper.updateById(oldOwner);
+        ProjectMember newOwner = getMember(projectId, userId);
+        newOwner.setPermission("PROJECT_ADMIN");
+        projectMemberMapper.updateById(newOwner);
+        project.setCreatorId(userId);
+        project.setUpdatedAt(LocalDateTime.now());
+        projectMapper.updateById(project);
+    }
+
+    private void requireManager(Long projectId) {
+        if (!canManageMembers(projectId)) throw new BusinessException("只有项目管理员可以管理成员");
+    }
+
+    private User findUser(String username) {
+        if (username == null || username.isBlank()) throw new BusinessException("请输入用户名");
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username.trim()));
+        if (user == null) throw new BusinessException("用户不存在，请确认用户名");
+        return user;
+    }
+
+    private ProjectMember getMember(Long projectId, Long userId) {
+        ProjectMember member = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, userId));
+        if (member == null) throw new BusinessException("该用户不是项目成员");
+        return member;
+    }
+
+    private ProjectMember getOrCreateOwner(Long projectId, Long userId) {
+        ProjectMember member = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, userId));
+        if (member != null) return member;
+        member = new ProjectMember();
+        member.setProjectId(projectId); member.setUserId(userId); member.setPermission("PROJECT_ADMIN");
+        member.setJoinedAt(LocalDateTime.now()); projectMemberMapper.insert(member);
+        return member;
+    }
+
+    private String validIdentity(String identity, String fallback) {
+        String value = identity == null || identity.isBlank() ? fallback : identity;
+        List<String> allowed = List.of("PROJECT_MANAGER", "FRONTEND_DEV", "BACKEND_DEV", "QA_TESTER", "UI_DESIGNER");
+        if (value == null || !allowed.contains(value)) throw new BusinessException("无效的岗位身份");
+        return value;
+    }
+
+    private String validPermission(String permission) {
+        String value = permission == null || permission.isBlank() ? "MEMBER" : permission;
+        if (!List.of("PROJECT_ADMIN", "MEMBER", "VIEWER").contains(value)) throw new BusinessException("无效的成员权限");
+        return value;
     }
 
     // ── AI 项目周报 ──

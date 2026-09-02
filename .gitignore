@@ -44,6 +44,7 @@ kanban-frontend/dist/
 
 ### Local configuration ###
 .claude/settings.local.json
+.env
 
 ### Project reports and presentation materials ###
 *.docx

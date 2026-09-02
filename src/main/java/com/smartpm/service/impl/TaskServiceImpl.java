@@ -15,6 +15,7 @@ import com.smartpm.mapper.ProjectMemberMapper;
 import com.smartpm.mapper.TaskMapper;
 import com.smartpm.mapper.UserMapper;
 import com.smartpm.service.AIService;
+import com.smartpm.service.ProjectService;
 import com.smartpm.service.TaskService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,12 +40,14 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectMemberMapper projectMemberMapper;
     private final UserMapper userMapper;
     private final AIService aiService;
+    private final ProjectService projectService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ── 创建主任务 ──
 
     @Override
     public Task create(Long projectId, String title, String description, Long assigneeId, String dueDate) {
+        projectService.assertProjectAccess(projectId, true);
         if (title == null || title.isBlank()) {
             throw new BusinessException("任务标题不能为空");
         }
@@ -76,6 +79,7 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public List<Task> listByProject(Long projectId) {
+        projectService.assertProjectAccess(projectId, false);
         return taskMapper.selectList(
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getProjectId, projectId)
@@ -92,6 +96,7 @@ public class TaskServiceImpl implements TaskService {
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
+        projectService.assertProjectAccess(task.getProjectId(), false);
         return taskMapper.selectList(
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getParentId, taskId)
@@ -110,6 +115,7 @@ public class TaskServiceImpl implements TaskService {
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
+        projectService.assertProjectAccess(task.getProjectId(), true);
 
         if (dto.getTitle() != null) {
             task.setTitle(dto.getTitle());
@@ -162,6 +168,7 @@ public class TaskServiceImpl implements TaskService {
         }
 
         Long projectId = task.getProjectId();
+        projectService.assertProjectAccess(projectId, true);
         String sourceStatus = task.getStatus();
         int sourceOrder = task.getOrderIndex() != null ? task.getOrderIndex() : 0;
 
@@ -231,6 +238,7 @@ public class TaskServiceImpl implements TaskService {
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
+        projectService.assertProjectAccess(task.getProjectId(), true);
         // 级联删除所有子任务
         taskMapper.delete(new LambdaQueryWrapper<Task>().eq(Task::getParentId, id));
         taskMapper.deleteById(id);
@@ -244,6 +252,7 @@ public class TaskServiceImpl implements TaskService {
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
+        projectService.assertProjectAccess(task.getProjectId(), true);
         if (task.getParentId() == null) {
             throw new BusinessException("该任务为主任务，不支持此操作");
         }
@@ -263,6 +272,7 @@ public class TaskServiceImpl implements TaskService {
         if (task == null) {
             throw new BusinessException("任务不存在");
         }
+        projectService.assertProjectAccess(task.getProjectId(), true);
 
         // 查询项目成员及其专业身份
         List<ProjectMember> members = projectMemberMapper.selectList(
@@ -380,6 +390,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public List<Task> initTasks(Long projectId) {
+        projectService.assertProjectAccess(projectId, true);
         Project project = projectMapper.selectById(projectId);
         if (project == null) {
             throw new BusinessException("项目不存在");
@@ -408,20 +419,45 @@ public class TaskServiceImpl implements TaskService {
         List<Task> created = new ArrayList<>();
         int order = 0;
         for (Map<String, String> tm : taskMaps) {
+            String title = tm.get("title");
+            if (title == null || title.isBlank()) continue;
             Task task = new Task();
             task.setProjectId(projectId);
             task.setParentId(null);
-            task.setTitle(tm.get("title"));
+            task.setTitle(title.trim());
             task.setDescription(tm.getOrDefault("description", ""));
             task.setStatus("TODO");
             task.setCreatorId(UserHolder.getUserId());
             task.setOrderIndex(order++);
+            String recommendedRole = tm.get("recommended_role");
+            task.setRecommendedRole(recommendedRole);
             task.setCreatedAt(LocalDateTime.now());
             task.setUpdatedAt(LocalDateTime.now());
             taskMapper.insert(task);
             created.add(task);
         }
+        if (created.isEmpty()) {
+            throw new BusinessException("AI 未生成有效的开发任务，请重试");
+        }
         return created;
+    }
+
+    /** 根据项目成员的专业身份建立自动指派映射。 */
+    private Map<String, Long> buildIdentityUserMap(Long projectId) {
+        List<ProjectMember> members = projectMemberMapper.selectList(
+                new LambdaQueryWrapper<ProjectMember>()
+                        .eq(ProjectMember::getProjectId, projectId));
+        Map<String, Long> identityUserMap = new java.util.HashMap<>();
+        if (members.isEmpty()) return identityUserMap;
+
+        List<Long> userIds = members.stream().map(ProjectMember::getUserId).toList();
+        List<User> users = userMapper.selectBatchIds(userIds);
+        for (User user : users) {
+            if (user.getIdentity() != null && !user.getIdentity().isBlank()) {
+                identityUserMap.putIfAbsent(user.getIdentity(), user.getId());
+            }
+        }
+        return identityUserMap;
     }
 
     private String buildInitPrompt(String projectName, String description) {
@@ -434,15 +470,16 @@ public class TaskServiceImpl implements TaskService {
         }
         sb.append("【任务规划要求 — 请严格遵守】\n");
         sb.append("1. 每个任务必须是独立完整的开发阶段，有明确的边界和可交付成果\n");
-        sb.append("2. 任务之间按依赖关系排序（先基础设施→再核心功能→最后打磨优化）\n");
+        sb.append("2. 任务之间按依赖关系排序（先基础设施→再核心功能→最后测试验收）\n");
         sb.append("3. 任务数量控制在 3-5 个，每个任务描述控制在 20-60 字\n");
         sb.append("4. 任务标题要简洁有力（8-16 字），一眼能看出要做什么\n");
-        sb.append("5. 这些是顶层大任务（父任务），后续可被 AI 进一步拆解为具体子任务\n\n");
+        sb.append("5. 为每个任务推荐一个最合适的执行岗位：PROJECT_MANAGER、FRONTEND_DEV、BACKEND_DEV、QA_TESTER、UI_DESIGNER\n");
+        sb.append("6. 这些是顶层大任务（父任务），后续可被 AI 进一步拆解为具体子任务\n\n");
         sb.append("【输出格式】\n");
         sb.append("只返回一个 JSON 数组，不要加任何其他文字：\n");
-        sb.append("[{\"title\": \"任务标题\", \"description\": \"该阶段核心工作内容\"}]\n\n");
+        sb.append("[{\"title\": \"任务标题\", \"description\": \"该阶段核心工作内容\", \"recommended_role\": \"BACKEND_DEV\"}]\n\n");
         sb.append("示例（项目=电商平台）：\n");
-        sb.append("[{\"title\": \"搭建项目基础架构\", \"description\": \"初始化前后端项目框架，配置数据库、中间件和 CI/CD 流水线\"}, {\"title\": \"实现用户认证系统\", \"description\": \"开发注册登录、JWT 鉴权、权限角色管理等核心安全模块\"}, {\"title\": \"构建商品管理后台\", \"description\": \"设计商品数据模型，实现 CRUD 接口和管理端操作界面\"}, {\"title\": \"开发商城首页与商品列表\", \"description\": \"实现商品搜索、分类筛选、分页加载等前台展示功能\"}, {\"title\": \"集成支付与订单系统\", \"description\": \"对接第三方支付，实现订单创建、支付回调、状态流转全链路\"}]");
+        sb.append("[{\"title\": \"设计账目数据模型\", \"description\": \"设计收入支出、分类、账户和时间字段，建立必要索引\", \"recommended_role\": \"BACKEND_DEV\"}, {\"title\": \"开发账目管理接口\", \"description\": \"实现账目新增、编辑、删除、查询及统计接口\", \"recommended_role\": \"BACKEND_DEV\"}, {\"title\": \"实现记账操作页面\", \"description\": \"开发记账表单、账目列表、筛选和移动端交互\", \"recommended_role\": \"FRONTEND_DEV\"}, {\"title\": \"设计数据统计界面\", \"description\": \"设计收支趋势、分类占比和余额概览的可视化界面\", \"recommended_role\": \"UI_DESIGNER\"}, {\"title\": \"完成联调与验收测试\", \"description\": \"覆盖核心记账流程、边界条件和权限场景，修复上线问题\", \"recommended_role\": \"QA_TESTER\"}]");
         return sb.toString();
     }
 }

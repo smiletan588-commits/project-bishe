@@ -130,14 +130,14 @@ async function handleRegister() {
   display: flex;
   width: 880px;
   min-height: 560px;
-  background: var(--bg-surface);
+  background: #242321;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
 .brand-side {
   flex: 0 0 380px;
-  background: var(--brand-gradient);
+  background: #1F1F1E;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -167,7 +167,8 @@ async function handleRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 40px;
+  padding: 56px 48px;
+  background: #FFFDF8;
 }
 .form-wrapper {
   width: 100%;

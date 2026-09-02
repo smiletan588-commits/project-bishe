@@ -1,3 +1,13 @@
+# ---------- 后端构建阶段 ----------
+FROM maven:3.9.9-eclipse-temurin-17 AS backend-builder
+
+WORKDIR /build
+COPY pom.xml .
+COPY src ./src
+
+RUN mvn -B -DskipTests package
+
+# ---------- 后端运行阶段 ----------
 FROM eclipse-temurin:17-jre-alpine
 
 # curl 用于 Docker healthcheck
@@ -9,8 +19,8 @@ USER app
 
 WORKDIR /app
 
-# 复制已构建的 jar（mvn package -DskipTests 后执行）
-COPY target/app.jar app.jar
+# 复制 Docker 内部构建好的 jar，无需本机预先执行 Maven
+COPY --from=backend-builder /build/target/app.jar app.jar
 
 EXPOSE 8080
 

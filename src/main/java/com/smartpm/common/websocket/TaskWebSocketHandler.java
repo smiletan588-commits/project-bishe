@@ -1,6 +1,12 @@
 package com.smartpm.common.websocket;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.smartpm.entity.Project;
+import com.smartpm.entity.ProjectMember;
+import com.smartpm.mapper.ProjectMapper;
+import com.smartpm.mapper.ProjectMemberMapper;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -23,7 +29,11 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class TaskWebSocketHandler extends TextWebSocketHandler {
+
+    private final ProjectMapper projectMapper;
+    private final ProjectMemberMapper projectMemberMapper;
 
     /** projectId → 该项目的所有在线 WebSocket 会话 */
     private final Map<Long, Set<WebSocketSession>> projectSessions = new ConcurrentHashMap<>();
@@ -33,6 +43,16 @@ public class TaskWebSocketHandler extends TextWebSocketHandler {
         Long projectId = extractProjectId(session);
         if (projectId == null) {
             session.close(CloseStatus.BAD_DATA);
+            return;
+        }
+        Long userId = (Long) session.getAttributes().get("userId");
+        Project project = projectMapper.selectById(projectId);
+        boolean member = project != null && (project.getCreatorId().equals(userId)
+                || projectMemberMapper.selectCount(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, userId)) > 0);
+        if (!member) {
+            log.warn("WebSocket 拒绝非项目成员: projectId={}, userId={}", projectId, userId);
+            session.close(CloseStatus.POLICY_VIOLATION);
             return;
         }
         session.getAttributes().put("projectId", projectId);

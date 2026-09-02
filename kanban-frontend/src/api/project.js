@@ -19,3 +19,19 @@ export function deleteProject(id) {
 export function listProjectMembers(projectId) {
   return request.get(`/project/${projectId}/members`)
 }
+
+export function inviteProjectMember(projectId, username, identity, permission) {
+  return request.post(`/project/${projectId}/members/invite`, null, { params: { username, identity, permission } })
+}
+
+export function updateProjectMember(projectId, userId, identity, permission) {
+  return request.put(`/project/${projectId}/members/${userId}`, null, { params: { identity, permission } })
+}
+
+export function removeProjectMember(projectId, userId) {
+  return request.delete(`/project/${projectId}/members/${userId}`)
+}
+
+export function transferProjectOwner(projectId, userId) {
+  return request.post(`/project/${projectId}/transfer-owner`, null, { params: { userId } })
+}

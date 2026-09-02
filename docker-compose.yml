@@ -61,15 +61,15 @@ services:
 
   # ── Nginx（前端静态资源 + 反向代理）───────────────────
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
     container_name: smartpm-nginx
-    volumes:
-      - ./kanban-frontend/dist:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - smartpm-net
     restart: unless-stopped

@@ -55,9 +55,15 @@ CREATE TABLE IF NOT EXISTS pm_project_member (
     id          BIGINT  NOT NULL AUTO_INCREMENT COMMENT '成员关联ID',
     project_id  BIGINT  NOT NULL COMMENT '项目ID',
     user_id     BIGINT  NOT NULL COMMENT '用户ID',
+    identity    VARCHAR(50) DEFAULT NULL COMMENT '项目内身份',
+    permission  VARCHAR(20) NOT NULL DEFAULT 'MEMBER' COMMENT 'PROJECT_ADMIN/MEMBER/VIEWER',
     joined_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_project_user (project_id, user_id),
     INDEX idx_project (project_id),
     INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='项目成员表';
+
+-- 已有数据库升级：补充项目内身份与权限
+ALTER TABLE pm_project_member ADD COLUMN IF NOT EXISTS identity VARCHAR(50) DEFAULT NULL COMMENT '项目内身份';
+ALTER TABLE pm_project_member ADD COLUMN IF NOT EXISTS permission VARCHAR(20) NOT NULL DEFAULT 'MEMBER' COMMENT 'PROJECT_ADMIN/MEMBER/VIEWER';

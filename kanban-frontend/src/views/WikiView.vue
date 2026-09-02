@@ -403,8 +403,8 @@ onMounted(() => {
   justify-content: space-between;
   padding: 0 20px;
   height: 52px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
+  background: #242321;
+  border-bottom: 1px solid #3A3732;
   flex-shrink: 0;
   z-index: 10;
 }
@@ -417,12 +417,13 @@ onMounted(() => {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
+  color: #F7F1E7;
 }
 .sep { color: var(--text-tertiary); font-size: 14px; }
 .page-label {
   font-size: 13px;
-  color: var(--text-secondary);
-  background: var(--bg-elevated);
+  color: #B9B1A5;
+  background: #3A3732;
   padding: 2px 10px;
   border-radius: 12px;
 }
@@ -435,8 +436,8 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--brand-gradient);
-  color: #fff;
+  background: #D58A22;
+  color: #241D14;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -454,8 +455,8 @@ onMounted(() => {
 /* 左侧栏 */
 .wiki-sidebar {
   width: 280px;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border);
+  background: #2B2A28;
+  border-right: 1px solid #403D38;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -470,7 +471,7 @@ onMounted(() => {
 .sidebar-title {
   font-weight: 600;
   font-size: 14px;
-  color: var(--text-primary);
+  color: #F7F1E7;
 }
 .doc-list {
   flex: 1;
@@ -487,7 +488,7 @@ onMounted(() => {
   transition: background 0.15s;
   margin-bottom: 2px;
 }
-.doc-item:hover { background: var(--bg-elevated); }
+.doc-item:hover { background: #3A3732; }
 .doc-item.active {
   background: var(--brand-light);
   border-left: 3px solid var(--brand);
@@ -509,7 +510,7 @@ onMounted(() => {
 .doc-title {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: #F7F1E7;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -562,19 +563,20 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
+  background: #2B2A28;
+  border-bottom: 1px solid #403D38;
 }
 .editor-doc-title {
   font-weight: 600;
   font-size: 14px;
+  color: #F7F1E7;
 }
 
 /* AI 面板 */
 .ai-panel {
   width: 380px;
-  background: var(--bg-surface);
-  border-left: 1px solid var(--border);
+  background: #242321;
+  border-left: 1px solid #403D38;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;

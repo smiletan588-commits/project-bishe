@@ -22,7 +22,16 @@ request.interceptors.request.use(
 
 // 响应拦截器 — 统一错误处理
 request.interceptors.response.use(
-  response => response,
+  response => {
+    // 后端统一返回 R，但部分业务异常仍可能使用 HTTP 200。
+    // 这里统一把 code 非 200 的业务响应转为 rejected，避免页面误报成功。
+    if (response.data && response.data.code && response.data.code !== 200) {
+      const error = new Error(response.data.msg || '请求处理失败')
+      error.response = response
+      return Promise.reject(error)
+    }
+    return response
+  },
   error => {
     if (error.response) {
       const { status, data } = error.response

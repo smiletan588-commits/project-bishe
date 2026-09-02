@@ -15,7 +15,7 @@
       <!-- 四个概览卡片 -->
       <el-row :gutter="20" class="stat-row">
         <el-col :span="6">
-          <div class="stat-card" style="--card-color: #6366F1;">
+          <div class="stat-card" style="--card-color: #D58A22;">
             <div class="stat-icon">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             </div>
@@ -173,7 +173,7 @@ function initCharts() {
       itemStyle: {
         borderRadius: [0, 6, 6, 0],
         color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-          { offset: 0, color: '#6366F1' }, { offset: 1, color: '#8B5CF6' }
+          { offset: 0, color: '#E2A43A' }, { offset: 1, color: '#A95D12' }
         ])
       },
       data: ranking.map(r => r.taskCount)
@@ -200,8 +200,8 @@ function initCharts() {
     },
     series: [{
       type: 'line', smooth: true, symbol: 'circle', symbolSize: 6,
-      lineStyle: { color: '#6366F1', width: 2.5 },
-      itemStyle: { color: '#6366F1' },
+      lineStyle: { color: '#D58A22', width: 2.5 },
+      itemStyle: { color: '#D58A22' },
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
           { offset: 0, color: 'rgba(99,102,241,0.25)' },
@@ -239,11 +239,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.analytics-page { min-height: 100vh; background: #F1F5F9; }
+.analytics-page { min-height: 100vh; background: var(--bg-base); }
 
 .topbar {
   display: flex; align-items: center; height: 56px; padding: 0 24px;
-  background: #fff; border-bottom: 1px solid #E2E8F0;
+  background: #242321; border-bottom: 1px solid #3A3732;
 }
 .topbar-left { display: flex; align-items: center; gap: 12px; }
 .back-btn {
@@ -252,8 +252,8 @@ onUnmounted(() => {
   font-size: 13px; cursor: pointer; padding: 5px 12px; border-radius: 6px;
   transition: all 0.15s;
 }
-.back-btn:hover { border-color: #6366F1; color: #6366F1; }
-.brand { font-size: 16px; font-weight: 700; color: #1E293B; }
+.back-btn:hover { border-color: #D58A22; color: #D58A22; }
+.brand { font-size: 16px; font-weight: 700; color: #F7F1E7; }
 .divider { color: #CBD5E1; }
 .page-title { font-size: 14px; color: #64748B; font-weight: 500; }
 
@@ -263,7 +263,7 @@ onUnmounted(() => {
 .stat-row { margin-bottom: 20px; }
 .stat-card {
   display: flex; align-items: center; gap: 16px;
-  background: #fff; border-radius: 12px; padding: 22px 24px;
+  background: #242321; border-radius: var(--radius); padding: 22px 24px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   border: 1px solid #F1F5F9; transition: transform 0.15s, box-shadow 0.15s;
 }
@@ -275,17 +275,17 @@ onUnmounted(() => {
   color: var(--card-color); flex-shrink: 0;
 }
 .stat-info { display: flex; flex-direction: column; }
-.stat-value { font-size: 28px; font-weight: 700; color: #1E293B; line-height: 1.1; }
+.stat-value { font-size: 28px; font-weight: 700; color: #F7F1E7; line-height: 1.1; }
 .stat-label { font-size: 13px; color: #94A3B8; margin-top: 3px; }
 
 /* 图表卡片 */
 .chart-row { margin-bottom: 20px; }
 .chart-card {
-  background: #fff; border-radius: 12px; padding: 20px 20px 16px;
+  background: #242321; border-radius: var(--radius); padding: 20px 20px 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   border: 1px solid #F1F5F9; height: 100%;
 }
-.chart-card h4 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #334155; }
+.chart-card h4 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #F7F1E7; }
 .chart-box { width: 100%; height: 300px; }
 
 @media (max-width: 992px) {

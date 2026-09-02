@@ -60,8 +60,16 @@ public class ProjectController {
      */
     @GetMapping("/{projectId}/members")
     public R<List<Map<String, Object>>> members(@PathVariable Long projectId) {
+        projectService.assertProjectAccess(projectId, false);
+        Project project = projectService.getByIdForAccess(projectId);
         List<ProjectMember> members = projectMemberMapper.selectList(
                 new LambdaQueryWrapper<ProjectMember>().eq(ProjectMember::getProjectId, projectId));
+        if (members.stream().noneMatch(m -> m.getUserId().equals(project.getCreatorId()))) {
+            ProjectMember owner = new ProjectMember();
+            owner.setProjectId(projectId); owner.setUserId(project.getCreatorId());
+            owner.setPermission("PROJECT_ADMIN");
+            members.add(0, owner);
+        }
         if (members.isEmpty()) return R.ok(List.of());
 
         List<Long> userIds = members.stream().map(ProjectMember::getUserId).collect(Collectors.toList());
@@ -76,10 +84,43 @@ public class ProjectController {
             item.put("userId", u.getId());
             item.put("username", u.getUsername());
             item.put("nickname", u.getNickname());
-            item.put("identity", u.getIdentity());
+            item.put("identity", m.getIdentity() != null ? m.getIdentity() : u.getIdentity());
+            item.put("permission", m.getPermission() != null ? m.getPermission() : "MEMBER");
+            item.put("owner", project.getCreatorId().equals(u.getId()));
+            item.put("canManage", projectService.canManageMembers(projectId));
             result.add(item);
         }
         return R.ok(result);
+    }
+
+    @PostMapping("/{projectId}/members/invite")
+    public R<Void> inviteMember(@PathVariable Long projectId,
+                                @RequestParam String username,
+                                @RequestParam(required = false) String identity,
+                                @RequestParam(required = false, defaultValue = "MEMBER") String permission) {
+        projectService.inviteMember(projectId, username, identity, permission);
+        return R.ok();
+    }
+
+    @PutMapping("/{projectId}/members/{userId}")
+    public R<Void> updateMember(@PathVariable Long projectId,
+                                @PathVariable Long userId,
+                                @RequestParam(required = false) String identity,
+                                @RequestParam(required = false) String permission) {
+        projectService.updateMember(projectId, userId, identity, permission);
+        return R.ok();
+    }
+
+    @DeleteMapping("/{projectId}/members/{userId}")
+    public R<Void> removeMember(@PathVariable Long projectId, @PathVariable Long userId) {
+        projectService.removeMember(projectId, userId);
+        return R.ok();
+    }
+
+    @PostMapping("/{projectId}/transfer-owner")
+    public R<Void> transferOwner(@PathVariable Long projectId, @RequestParam Long userId) {
+        projectService.transferOwner(projectId, userId);
+        return R.ok();
     }
 
     /**

@@ -8,8 +8,9 @@
 .git/
 .gitignore
 
-# Frontend (不需要在后端镜像中)
-kanban-frontend/
+# Frontend dependencies/build output (源码需要被前端镜像构建阶段使用)
+kanban-frontend/node_modules/
+kanban-frontend/dist/
 node_modules/
 
 # Build artifacts (只保留 target/app.jar)
