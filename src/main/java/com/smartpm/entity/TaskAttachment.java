@@ -20,4 +20,6 @@ public class TaskAttachment {
     private Long size;
     private Long uploaderId;
     private LocalDateTime createdAt;
+    private LocalDateTime deletedAt;
+    private Long deletedBy;
 }

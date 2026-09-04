@@ -25,4 +25,9 @@ public class Project {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    /** 非空表示已移入回收站。 */
+    private LocalDateTime deletedAt;
+
+    private Long deletedBy;
 }

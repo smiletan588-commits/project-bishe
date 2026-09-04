@@ -62,6 +62,7 @@ public class WikiServiceImpl implements WikiService {
         List<Wiki> wikis = wikiMapper.selectList(
                 new LambdaQueryWrapper<Wiki>()
                         .eq(Wiki::getProjectId, projectId)
+                        .isNull(Wiki::getDeletedAt)
                         .orderByDesc(Wiki::getUpdateTime));
 
         return wikis.stream().map(w -> {
@@ -76,7 +77,7 @@ public class WikiServiceImpl implements WikiService {
     @Override
     public Wiki getById(Long id) {
         Wiki wiki = wikiMapper.selectById(id);
-        if (wiki == null) {
+        if (wiki == null || wiki.getDeletedAt() != null) {
             throw new BusinessException("文档不存在");
         }
         projectService.assertProjectAccess(wiki.getProjectId(), false);
@@ -86,7 +87,7 @@ public class WikiServiceImpl implements WikiService {
     @Override
     public Wiki update(Long id, String title, String content) {
         Wiki wiki = wikiMapper.selectById(id);
-        if (wiki == null) {
+        if (wiki == null || wiki.getDeletedAt() != null) {
             throw new BusinessException("文档不存在");
         }
         projectService.assertProjectAccess(wiki.getProjectId(), true);
@@ -105,11 +106,14 @@ public class WikiServiceImpl implements WikiService {
     @Transactional
     public void delete(Long id) {
         Wiki wiki = wikiMapper.selectById(id);
-        if (wiki == null) {
+        if (wiki == null || wiki.getDeletedAt() != null) {
             throw new BusinessException("文档不存在");
         }
         projectService.assertProjectAccess(wiki.getProjectId(), true);
-        wikiMapper.deleteById(id);
+        wiki.setDeletedAt(LocalDateTime.now());
+        wiki.setDeletedBy(UserHolder.getUserId());
+        wiki.setUpdateTime(LocalDateTime.now());
+        wikiMapper.updateById(wiki);
     }
 
     @Override

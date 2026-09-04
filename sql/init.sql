@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS sys_user (
     password    VARCHAR(255) NOT NULL COMMENT '密码(BCrypt加密)',
     nickname    VARCHAR(64)  DEFAULT NULL COMMENT '昵称',
     identity    VARCHAR(50)  DEFAULT NULL COMMENT '专业身份: PROJECT_MANAGER/FRONTEND_DEV/BACKEND_DEV/QA_TESTER/UI_DESIGNER',
+    system_role VARCHAR(20)  NOT NULL DEFAULT 'USER' COMMENT '系统权限: ADMIN/USER',
+    status      VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE' COMMENT '账号状态: ACTIVE/DISABLED',
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
@@ -25,6 +27,8 @@ CREATE TABLE IF NOT EXISTS sys_project (
     creator_id  BIGINT       NOT NULL COMMENT '创建者ID',
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted_at  DATETIME     DEFAULT NULL COMMENT '移入回收站时间',
+    deleted_by  BIGINT       DEFAULT NULL COMMENT '删除人ID',
     PRIMARY KEY (id),
     INDEX idx_creator (creator_id),
     UNIQUE KEY uk_invite_code (invite_code)
@@ -52,6 +56,8 @@ CREATE TABLE IF NOT EXISTS sys_task (
     order_index INT          NOT NULL DEFAULT 0 COMMENT '排序权重',
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted_at  DATETIME     DEFAULT NULL COMMENT '移入回收站时间',
+    deleted_by  BIGINT       DEFAULT NULL COMMENT '删除人ID',
     PRIMARY KEY (id),
     INDEX idx_project (project_id),
     INDEX idx_assignee (assignee_id)
@@ -97,6 +103,8 @@ CREATE TABLE IF NOT EXISTS pm_task_attachment (
     size          BIGINT       NOT NULL COMMENT '文件大小（字节）',
     uploader_id   BIGINT       NOT NULL COMMENT '上传人ID',
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at    DATETIME     DEFAULT NULL COMMENT '移入回收站时间',
+    deleted_by    BIGINT       DEFAULT NULL COMMENT '删除人ID',
     PRIMARY KEY (id),
     INDEX idx_task (task_id),
     INDEX idx_project (project_id)
@@ -113,3 +121,17 @@ CREATE TABLE IF NOT EXISTS pm_attachment_download_log (
     INDEX idx_attachment (attachment_id),
     INDEX idx_project (project_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='附件下载记录';
+
+CREATE TABLE IF NOT EXISTS pm_wiki (
+    id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '文档ID',
+    project_id  BIGINT       NOT NULL COMMENT '项目ID',
+    title       VARCHAR(255) NOT NULL COMMENT '文档标题',
+    content     LONGTEXT     DEFAULT NULL COMMENT '文档内容',
+    creator_id  BIGINT       NOT NULL COMMENT '创建人ID',
+    create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at  DATETIME     DEFAULT NULL COMMENT '移入回收站时间',
+    deleted_by  BIGINT       DEFAULT NULL COMMENT '删除人ID',
+    PRIMARY KEY (id),
+    INDEX idx_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='项目文档';

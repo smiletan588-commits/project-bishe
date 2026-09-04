@@ -61,6 +61,7 @@ public class ProjectController {
     @DeleteMapping("/{id}")
     public R<Void> delete(@PathVariable Long id) {
         projectService.delete(id);
+        wsHandler.broadcast(id, "{\"type\":\"TASK_UPDATED\"}");
         return R.ok();
     }
 

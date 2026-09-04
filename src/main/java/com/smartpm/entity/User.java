@@ -23,6 +23,12 @@ public class User {
     /** 专业身份：PROJECT_MANAGER / FRONTEND_DEV / BACKEND_DEV / QA_TESTER / UI_DESIGNER */
     private String identity;
 
+    /** 系统权限：ADMIN / USER。与项目内的成员权限独立。 */
+    private String systemRole;
+
+    /** 账号状态：ACTIVE / DISABLED。 */
+    private String status;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

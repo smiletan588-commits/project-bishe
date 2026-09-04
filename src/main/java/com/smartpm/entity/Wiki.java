@@ -25,4 +25,8 @@ public class Wiki {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
+
+    private LocalDateTime deletedAt;
+
+    private Long deletedBy;
 }

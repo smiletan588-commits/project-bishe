@@ -17,6 +17,8 @@
         <span class="brand">SmartPM</span>
       </div>
       <div class="topbar-right">
+        <button class="analytics-btn recycle-btn" @click="$router.push('/recycle-bin')">回收站</button>
+        <button v-if="userStore.systemRole === 'ADMIN'" class="analytics-btn admin-btn" @click="$router.push('/admin/users')">系统管理</button>
         <button class="analytics-btn" @click="$router.push('/analytics')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/>
@@ -473,16 +475,16 @@ async function handleUpdate() {
 async function handleDelete(project) {
   try {
     await ElMessageBox.confirm(
-      '您确定要删除该项目及旗下的所有任务吗？此操作不可逆。',
-      '删除项目',
-      { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' }
+      '项目会移入回收站，任务、文档和附件将被完整保留，可随时恢复。',
+      '移入回收站',
+      { confirmButtonText: '移入回收站', cancelButtonText: '取消', type: 'warning' }
     )
   } catch {
     return
   }
   try {
     await deleteProject(project.id)
-    ElMessage.success('项目已删除')
+    ElMessage.success('项目已移入回收站')
     await fetchProjects()
   } catch (error) {
     console.error('[Dashboard] 删除项目失败:', error)
@@ -535,6 +537,8 @@ onMounted(async () => {
   transition: opacity 0.15s; margin-right: 6px;
 }
 .analytics-btn:hover { opacity: 0.88; }
+.admin-btn { background: transparent; border: 1px solid rgba(226,164,58,.6); color: #E2A43A; }
+.recycle-btn { background: transparent; border: 1px solid #5A554D; color: #D0C8BC; }
 
 .main { max-width: 1200px; margin: 0 auto; padding: 52px 30px; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }

@@ -71,7 +71,7 @@ public class AIPlanningServiceImpl implements AIPlanningService {
             throw new BusinessException("没有可应用的项目计划");
         }
         Long existing = taskMapper.selectCount(new LambdaQueryWrapper<Task>()
-                .eq(Task::getProjectId, projectId).isNull(Task::getParentId));
+                .eq(Task::getProjectId, projectId).isNull(Task::getParentId).isNull(Task::getDeletedAt));
         if (existing > 0) throw new BusinessException("项目已有任务，不能重复应用完整计划");
         normalizePlan(plan);
         Map<String, Long> identityUsers = identityUsers(projectId);
@@ -122,7 +122,7 @@ public class AIPlanningServiceImpl implements AIPlanningService {
     @Override
     public AITaskOptimizationVO optimizeTask(Long taskId) {
         Task task = taskMapper.selectById(taskId);
-        if (task == null) throw new BusinessException("任务不存在");
+        if (task == null || task.getDeletedAt() != null) throw new BusinessException("任务不存在或已移入回收站");
         projectService.assertProjectAccess(task.getProjectId(), true);
         AITaskOptimizationVO result = parseOptimization(aiService.chat(buildOptimizationPrompt(task)));
         if (result.getTitle() == null || result.getTitle().isBlank() || result.getDescription() == null || result.getDescription().isBlank()) {

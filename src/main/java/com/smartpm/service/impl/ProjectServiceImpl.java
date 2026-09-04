@@ -79,18 +79,18 @@ public class ProjectServiceImpl implements ProjectService {
         List<Long> memberProjectIds = projectMemberMapper.selectList(
                 new LambdaQueryWrapper<ProjectMember>().eq(ProjectMember::getUserId, userId))
                 .stream().map(ProjectMember::getProjectId).toList();
-        LambdaQueryWrapper<Project> query = new LambdaQueryWrapper<Project>()
-                .eq(Project::getCreatorId, userId);
-        if (!memberProjectIds.isEmpty()) {
-            query.or().in(Project::getId, memberProjectIds);
-        }
+        LambdaQueryWrapper<Project> query = new LambdaQueryWrapper<Project>().isNull(Project::getDeletedAt);
+        query.and(group -> {
+            group.eq(Project::getCreatorId, userId);
+            if (!memberProjectIds.isEmpty()) group.or().in(Project::getId, memberProjectIds);
+        });
         return projectMapper.selectList(query.orderByDesc(Project::getCreatedAt));
     }
 
     @Override
     public Project update(Long id, String name, String description) {
         Project project = projectMapper.selectById(id);
-        if (project == null) {
+        if (project == null || project.getDeletedAt() != null) {
             throw new BusinessException("项目不存在");
         }
         if (!project.getCreatorId().equals(UserHolder.getUserId()) && !canManageMembers(id)) {
@@ -118,26 +118,17 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BusinessException("无权删除此项目");
         }
 
-        List<Long> taskIds = taskMapper.selectList(
-                new LambdaQueryWrapper<Task>()
-                        .eq(Task::getProjectId, id)
-                        .isNull(Task::getParentId))
-                .stream().map(Task::getId).collect(Collectors.toList());
-        if (!taskIds.isEmpty()) {
-            taskMapper.delete(new LambdaQueryWrapper<Task>().in(Task::getParentId, taskIds));
-        }
-        downloadLogMapper.delete(new LambdaQueryWrapper<com.smartpm.entity.AttachmentDownloadLog>().eq(com.smartpm.entity.AttachmentDownloadLog::getProjectId, id));
-        attachmentMapper.delete(new LambdaQueryWrapper<com.smartpm.entity.TaskAttachment>().eq(com.smartpm.entity.TaskAttachment::getProjectId, id));
-        milestoneMapper.delete(new LambdaQueryWrapper<com.smartpm.entity.ProjectMilestone>().eq(com.smartpm.entity.ProjectMilestone::getProjectId, id));
-        taskMapper.delete(new LambdaQueryWrapper<Task>().eq(Task::getProjectId, id));
-        projectMemberMapper.delete(new LambdaQueryWrapper<ProjectMember>().eq(ProjectMember::getProjectId, id));
-        projectMapper.deleteById(id);
+        if (project.getDeletedAt() != null) throw new BusinessException("项目已在回收站中");
+        project.setDeletedAt(LocalDateTime.now());
+        project.setDeletedBy(UserHolder.getUserId());
+        project.setUpdatedAt(LocalDateTime.now());
+        projectMapper.updateById(project);
     }
 
     @Override
     public void assertProjectAccess(Long projectId, boolean write) {
         Project project = projectMapper.selectById(projectId);
-        if (project == null) throw new BusinessException("项目不存在");
+        if (project == null || project.getDeletedAt() != null) throw new BusinessException("项目不存在或已移入回收站");
         Long userId = UserHolder.getUserId();
         if (project.getCreatorId().equals(userId)) return;
         ProjectMember member = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
@@ -151,7 +142,7 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public boolean canManageMembers(Long projectId) {
         Project project = projectMapper.selectById(projectId);
-        if (project == null) return false;
+        if (project == null || project.getDeletedAt() != null) return false;
         if (project.getCreatorId().equals(UserHolder.getUserId())) return true;
         ProjectMember member = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
                 .eq(ProjectMember::getProjectId, projectId).eq(ProjectMember::getUserId, UserHolder.getUserId()));
@@ -161,7 +152,7 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public Project getByIdForAccess(Long projectId) {
         Project project = projectMapper.selectById(projectId);
-        if (project == null) throw new BusinessException("项目不存在");
+        if (project == null || project.getDeletedAt() != null) throw new BusinessException("项目不存在或已移入回收站");
         return project;
     }
 
@@ -238,7 +229,7 @@ public class ProjectServiceImpl implements ProjectService {
         if (inviteCode == null || inviteCode.isBlank()) throw new BusinessException("请输入项目邀请码");
         String normalizedCode = inviteCode.trim().toUpperCase(Locale.ROOT);
         Project project = projectMapper.selectOne(new LambdaQueryWrapper<Project>()
-                .eq(Project::getInviteCode, normalizedCode));
+                .eq(Project::getInviteCode, normalizedCode).isNull(Project::getDeletedAt));
         if (project == null) throw new BusinessException("邀请码无效，请向项目负责人确认");
 
         Long userId = UserHolder.getUserId();
@@ -325,7 +316,7 @@ public class ProjectServiceImpl implements ProjectService {
     public Flux<String> generateSummary(Long projectId) {
         try {
             Project project = projectMapper.selectById(projectId);
-            if (project == null) {
+            if (project == null || project.getDeletedAt() != null) {
                 throw new BusinessException("项目不存在");
             }
             log.info("[AI-Summary] 项目: id={}, name={}", projectId, project.getName());

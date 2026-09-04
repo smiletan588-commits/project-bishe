@@ -10,4 +10,5 @@ public class LoginVO {
     private Long userId;
     private String username;
     private String identity;
+    private String systemRole;
 }

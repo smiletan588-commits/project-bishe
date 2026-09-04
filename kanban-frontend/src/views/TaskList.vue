@@ -910,8 +910,9 @@ async function downloadAttachment(attachment) {
 }
 async function removeAttachment(attachment) {
   try {
-    await ElMessageBox.confirm(`确认删除附件“${attachment.originalName}”？`, '删除附件', { type: 'warning' })
+    await ElMessageBox.confirm(`确认将附件“${attachment.originalName}”移入回收站？`, '移入回收站', { type: 'warning' })
     await deleteTaskAttachment(attachment.id)
+    ElMessage.success('附件已移入回收站')
     await fetchAttachments(selectedTask.value.id)
   } catch { /* 取消 */ }
 }
@@ -929,12 +930,12 @@ function formatFileSize(size) {
 
 async function handleDelete(task) {
   try {
-    await ElMessageBox.confirm('确定删除该任务？将同时删除其所有子任务。', '删除任务', {
-      type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消'
+    await ElMessageBox.confirm('确定将该任务移入回收站？其子任务会一并保留，可在回收站恢复。', '移入回收站', {
+      type: 'warning', confirmButtonText: '移入回收站', cancelButtonText: '取消'
     })
     await deleteTask(task.id)
     delete subtaskData[task.id]
-    ElMessage.success('已删除')
+    ElMessage.success('任务已移入回收站')
     await fetchTasks()
   } catch { /* 取消 */ }
 }

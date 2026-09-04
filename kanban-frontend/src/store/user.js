@@ -10,15 +10,16 @@ export const useUserStore = defineStore('user', {
   getters: {
     isLoggedIn: state => !!state.token && !!state.userInfo,
     identity: state => state.userInfo?.identity || null,
+    systemRole: state => state.userInfo?.systemRole || 'USER',
     needsIdentityPrompt: state => !!state.token && !!state.userInfo && !state.userInfo.identity
   },
 
   actions: {
     async login(username, password) {
       const res = await loginApi(username, password)
-      const { token, userId, username: name, identity } = res.data.data
+      const { token, userId, username: name, identity, systemRole } = res.data.data
       this.token = token
-      this.userInfo = { userId, username: name, identity: identity || null }
+      this.userInfo = { userId, username: name, identity: identity || null, systemRole: systemRole || 'USER' }
       localStorage.setItem('token', token)
       localStorage.setItem('userInfo', JSON.stringify(this.userInfo))
     },

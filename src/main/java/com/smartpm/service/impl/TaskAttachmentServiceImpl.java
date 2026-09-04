@@ -47,6 +47,7 @@ public class TaskAttachmentServiceImpl implements TaskAttachmentService {
         projectService.assertProjectAccess(task.getProjectId(), false);
         return attachmentMapper.selectList(new LambdaQueryWrapper<TaskAttachment>()
                 .eq(TaskAttachment::getTaskId, taskId)
+                .isNull(TaskAttachment::getDeletedAt)
                 .orderByDesc(TaskAttachment::getCreatedAt));
     }
 
@@ -105,16 +106,9 @@ public class TaskAttachmentServiceImpl implements TaskAttachmentService {
     public void delete(Long attachmentId) {
         TaskAttachment attachment = get(attachmentId);
         projectService.assertProjectAccess(attachment.getProjectId(), true);
-        Path path = Path.of(uploadDir, "tasks", String.valueOf(attachment.getTaskId()), attachment.getStoredName())
-                .toAbsolutePath().normalize();
-        try {
-            Files.deleteIfExists(path);
-        } catch (IOException e) {
-            throw new BusinessException("附件删除失败，请重试");
-        }
-        downloadLogMapper.delete(new LambdaQueryWrapper<AttachmentDownloadLog>()
-                .eq(AttachmentDownloadLog::getAttachmentId, attachmentId));
-        attachmentMapper.deleteById(attachmentId);
+        attachment.setDeletedAt(LocalDateTime.now());
+        attachment.setDeletedBy(UserHolder.getUserId());
+        attachmentMapper.updateById(attachment);
     }
 
     @Override
@@ -131,13 +125,13 @@ public class TaskAttachmentServiceImpl implements TaskAttachmentService {
     @Override
     public TaskAttachment get(Long attachmentId) {
         TaskAttachment attachment = attachmentMapper.selectById(attachmentId);
-        if (attachment == null) throw new BusinessException("附件不存在");
+        if (attachment == null || attachment.getDeletedAt() != null) throw new BusinessException("附件不存在或已移入回收站");
         return attachment;
     }
 
     private Task getTask(Long taskId) {
         Task task = taskMapper.selectById(taskId);
-        if (task == null) throw new BusinessException("任务不存在");
+        if (task == null || task.getDeletedAt() != null) throw new BusinessException("任务不存在或已移入回收站");
         return task;
     }
 

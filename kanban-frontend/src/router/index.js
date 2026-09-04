@@ -39,6 +39,18 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/admin/users',
+    name: 'AdminUsers',
+    component: () => import('@/views/AdminUsers.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/recycle-bin',
+    name: 'RecycleBin',
+    component: () => import('@/views/RecycleBin.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/',
     redirect: '/dashboard'
   }
@@ -53,6 +65,8 @@ router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next('/login')
+  } else if (to.meta.requiresAdmin && userStore.systemRole !== 'ADMIN') {
+    next('/dashboard')
   } else if (to.meta.guest && userStore.isLoggedIn) {
     next('/dashboard')
   } else {

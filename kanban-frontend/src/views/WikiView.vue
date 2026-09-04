@@ -295,7 +295,7 @@ async function saveDocSilent() {
 async function handleDeleteDoc(id) {
   try {
     await deleteWiki(id)
-    ElMessage.success('文档已删除')
+    ElMessage.success('文档已移入回收站')
     if (currentDocId.value === id) {
       currentDocId.value = null
       currentDocTitle.value = ''

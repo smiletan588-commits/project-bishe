@@ -98,6 +98,7 @@ public class TaskServiceImpl implements TaskService {
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getProjectId, projectId)
                         .isNull(Task::getParentId)
+                        .isNull(Task::getDeletedAt)
                         .orderByAsc(Task::getOrderIndex)
                         .orderByDesc(Task::getCreatedAt));
         applyBlockedStates(projectId, tasks);
@@ -108,14 +109,12 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public List<Task> listSubtasks(Long taskId) {
-        Task task = taskMapper.selectById(taskId);
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
+        Task task = requireActiveTask(taskId);
         projectService.assertProjectAccess(task.getProjectId(), false);
         List<Task> subtasks = taskMapper.selectList(
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getParentId, taskId)
+                        .isNull(Task::getDeletedAt)
                         .orderByAsc(Task::getCreatedAt));
         applyBlockedStates(task.getProjectId(), subtasks);
         return subtasks;
@@ -129,10 +128,7 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException("任务ID不能为空");
         }
 
-        Task task = taskMapper.selectById(dto.getId());
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
+        Task task = requireActiveTask(dto.getId());
         projectService.assertProjectAccess(task.getProjectId(), true);
 
         if (dto.getTitle() != null) {
@@ -205,10 +201,7 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException("无效的任务状态: " + dto.getTargetStatus());
         }
 
-        Task task = taskMapper.selectById(dto.getTaskId());
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
+        Task task = requireActiveTask(dto.getTaskId());
 
         Long projectId = task.getProjectId();
         projectService.assertProjectAccess(projectId, true);
@@ -223,7 +216,8 @@ public class TaskServiceImpl implements TaskService {
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getProjectId, projectId)
                         .eq(Task::getStatus, targetStatus)
-                        .isNull(Task::getParentId));
+                        .isNull(Task::getParentId)
+                        .isNull(Task::getDeletedAt));
         int maxIndex = maxOrder.intValue();
         int targetOrder = dto.getTargetOrderIndex() != null ? dto.getTargetOrderIndex() : maxIndex;
         if (targetOrder < 0) targetOrder = 0;
@@ -238,6 +232,7 @@ public class TaskServiceImpl implements TaskService {
                                 .eq(Task::getProjectId, projectId)
                                 .eq(Task::getStatus, sourceStatus)
                                 .isNull(Task::getParentId)
+                                .isNull(Task::getDeletedAt)
                                 .gt(Task::getOrderIndex, sourceOrder)
                                 .le(Task::getOrderIndex, targetOrder)
                                 .setSql("order_index = order_index - 1"));
@@ -247,6 +242,7 @@ public class TaskServiceImpl implements TaskService {
                                 .eq(Task::getProjectId, projectId)
                                 .eq(Task::getStatus, sourceStatus)
                                 .isNull(Task::getParentId)
+                                .isNull(Task::getDeletedAt)
                                 .ge(Task::getOrderIndex, targetOrder)
                                 .lt(Task::getOrderIndex, sourceOrder)
                                 .setSql("order_index = order_index + 1"));
@@ -257,6 +253,7 @@ public class TaskServiceImpl implements TaskService {
                             .eq(Task::getProjectId, projectId)
                             .eq(Task::getStatus, sourceStatus)
                             .isNull(Task::getParentId)
+                            .isNull(Task::getDeletedAt)
                             .gt(Task::getOrderIndex, sourceOrder)
                             .setSql("order_index = order_index - 1"));
 
@@ -265,6 +262,7 @@ public class TaskServiceImpl implements TaskService {
                             .eq(Task::getProjectId, projectId)
                             .eq(Task::getStatus, targetStatus)
                             .isNull(Task::getParentId)
+                            .isNull(Task::getDeletedAt)
                             .ge(Task::getOrderIndex, targetOrder)
                             .setSql("order_index = order_index + 1"));
         }
@@ -280,25 +278,21 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public void delete(Long id) {
-        Task task = taskMapper.selectById(id);
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
+        Task task = requireActiveTask(id);
         projectService.assertProjectAccess(task.getProjectId(), true);
         assertNoTaskDependsOn(task);
-        // 级联删除所有子任务
-        taskMapper.delete(new LambdaQueryWrapper<Task>().eq(Task::getParentId, id));
-        taskMapper.deleteById(id);
+        LocalDateTime now = LocalDateTime.now();
+        task.setDeletedAt(now); task.setDeletedBy(UserHolder.getUserId()); task.setUpdatedAt(now);
+        taskMapper.updateById(task);
+        taskMapper.update(null, new LambdaUpdateWrapper<Task>().eq(Task::getParentId, id).isNull(Task::getDeletedAt)
+                .set(Task::getDeletedAt, now).set(Task::getDeletedBy, UserHolder.getUserId()).set(Task::getUpdatedAt, now));
     }
 
     // ── 切换子任务完成状态 ──
 
     @Override
     public Task toggleSubtask(Long taskId) {
-        Task task = taskMapper.selectById(taskId);
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
+        Task task = requireActiveTask(taskId);
         projectService.assertProjectAccess(task.getProjectId(), true);
         if (task.getParentId() == null) {
             throw new BusinessException("该任务为主任务，不支持此操作");
@@ -318,10 +312,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public List<Task> decomposeTask(Long taskId) {
-        Task task = taskMapper.selectById(taskId);
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
+        Task task = requireActiveTask(taskId);
         projectService.assertProjectAccess(task.getProjectId(), true);
 
         // 查询项目成员及其项目内岗位，用于自动分派。
@@ -432,15 +423,13 @@ public class TaskServiceImpl implements TaskService {
     public List<Task> initTasks(Long projectId) {
         projectService.assertProjectAccess(projectId, true);
         Project project = projectMapper.selectById(projectId);
-        if (project == null) {
-            throw new BusinessException("项目不存在");
-        }
+        if (project == null || project.getDeletedAt() != null) throw new BusinessException("项目不存在");
 
         // 检查是否已有任务
         Long existing = taskMapper.selectCount(
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getProjectId, projectId)
-                        .isNull(Task::getParentId));
+                        .isNull(Task::getParentId).isNull(Task::getDeletedAt));
         if (existing > 0) {
             throw new BusinessException("该项目已有任务，初始化仅适用于空项目");
         }
@@ -519,7 +508,7 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException("任务不能依赖自身");
         }
         if (ids.isEmpty()) return null;
-        List<Task> dependencies = taskMapper.selectBatchIds(ids);
+        List<Task> dependencies = taskMapper.selectList(new LambdaQueryWrapper<Task>().in(Task::getId, ids).isNull(Task::getDeletedAt));
         if (dependencies.size() != ids.size() || dependencies.stream().anyMatch(task -> !projectId.equals(task.getProjectId()))) {
             throw new BusinessException("前置任务不存在或不属于当前项目");
         }
@@ -558,14 +547,14 @@ public class TaskServiceImpl implements TaskService {
         if (!visited.add(currentId)) return false;
         if (currentId.equals(targetId)) return true;
         Task current = taskMapper.selectById(currentId);
-        if (current == null) return false;
+        if (current == null || current.getDeletedAt() != null) return false;
         return dependencyIdList(current).stream().anyMatch(id -> dependencyReaches(id, targetId, visited));
     }
 
     private void assertDependenciesCompleted(Task task) {
         List<Long> ids = dependencyIdList(task);
         if (ids.isEmpty()) return;
-        List<Task> dependencies = taskMapper.selectBatchIds(ids);
+        List<Task> dependencies = taskMapper.selectList(new LambdaQueryWrapper<Task>().in(Task::getId, ids).isNull(Task::getDeletedAt));
         List<String> unfinished = dependencies.stream()
                 .filter(dependency -> !"DONE".equals(dependency.getStatus()))
                 .map(Task::getTitle)
@@ -578,7 +567,7 @@ public class TaskServiceImpl implements TaskService {
     private void applyBlockedStates(Long projectId, List<Task> tasks) {
         if (tasks.isEmpty()) return;
         Map<Long, Task> taskMap = taskMapper.selectList(new LambdaQueryWrapper<Task>()
-                        .eq(Task::getProjectId, projectId))
+                        .eq(Task::getProjectId, projectId).isNull(Task::getDeletedAt))
                 .stream().collect(Collectors.toMap(Task::getId, task -> task));
         for (Task task : tasks) {
             List<String> blockedBy = dependencyIdList(task).stream()
@@ -594,7 +583,7 @@ public class TaskServiceImpl implements TaskService {
 
     private void assertNoTaskDependsOn(Task task) {
         List<Task> projectTasks = taskMapper.selectList(new LambdaQueryWrapper<Task>()
-                .eq(Task::getProjectId, task.getProjectId()));
+                .eq(Task::getProjectId, task.getProjectId()).isNull(Task::getDeletedAt));
         List<String> dependents = projectTasks.stream()
                 .filter(candidate -> !candidate.getId().equals(task.getId()))
                 .filter(candidate -> dependencyIdList(candidate).contains(task.getId()))
@@ -649,5 +638,11 @@ public class TaskServiceImpl implements TaskService {
         sb.append("示例（项目=电商平台）：\n");
         sb.append("[{\"title\": \"设计账目数据模型\", \"description\": \"设计收入支出、分类、账户和时间字段，建立必要索引\", \"recommended_role\": \"BACKEND_DEV\"}, {\"title\": \"开发账目管理接口\", \"description\": \"实现账目新增、编辑、删除、查询及统计接口\", \"recommended_role\": \"BACKEND_DEV\"}, {\"title\": \"实现记账操作页面\", \"description\": \"开发记账表单、账目列表、筛选和移动端交互\", \"recommended_role\": \"FRONTEND_DEV\"}, {\"title\": \"设计数据统计界面\", \"description\": \"设计收支趋势、分类占比和余额概览的可视化界面\", \"recommended_role\": \"UI_DESIGNER\"}, {\"title\": \"完成联调与验收测试\", \"description\": \"覆盖核心记账流程、边界条件和权限场景，修复上线问题\", \"recommended_role\": \"QA_TESTER\"}]");
         return sb.toString();
+    }
+
+    private Task requireActiveTask(Long id) {
+        Task task = taskMapper.selectById(id);
+        if (task == null || task.getDeletedAt() != null) throw new BusinessException("任务不存在或已移入回收站");
+        return task;
     }
 }
