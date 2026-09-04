@@ -8,21 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("sys_project")
-public class Project {
-
+@TableName("pm_attachment_download_log")
+public class AttachmentDownloadLog {
     @TableId(type = IdType.AUTO)
     private Long id;
-
-    private String name;
-
-    private String description;
-
-    private String inviteCode;
-
-    private Long creatorId;
-
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
+    private Long attachmentId;
+    private Long taskId;
+    private Long projectId;
+    private Long downloaderId;
+    private LocalDateTime downloadedAt;
 }

@@ -30,6 +30,12 @@ public interface ProjectService {
 
     void transferOwner(Long projectId, Long userId);
 
+    String getInviteCode(Long projectId);
+
+    Project joinByInviteCode(String inviteCode);
+
+    void updateMyProjectIdentity(Long projectId, String identity);
+
     /**
      * 生成项目周报：查询近7天完成/进行中/逾期的任务，
      * 组织为 Prompt 后流式调用 AI，返回 Markdown 格式的总结。

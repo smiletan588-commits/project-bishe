@@ -6,7 +6,9 @@ SmartPM 是一个融合 AI 任务拆解、岗位协作、实时看板和项目�
 
 ### Windows
 
-确保 Docker Desktop 已启动，然后双击 `start.bat`。
+双击 `start.bat` 即可启动。脚本会优先使用 Docker；如果电脑还没有 Docker Desktop，会自动切换到本地开发模式，启动本地 Spring Boot 后端和 Vue 前端。
+
+本地开发模式需要：Java 17、Maven、Node.js/npm，以及运行在 `localhost:3306` 的 MySQL。安装并启动 Docker Desktop 后，脚本会自动使用完整容器模式。
 
 ### macOS / Linux
 
@@ -20,7 +22,7 @@ SmartPM 是一个融合 AI 任务拆解、岗位协作、实时看板和项目�
 docker compose up -d --build
 ```
 
-启动完成后访问 <http://localhost>。
+Docker 模式启动完成后访问 <http://localhost>；本地开发模式访问 <http://localhost:3000>。
 
 ## 环境变量
 

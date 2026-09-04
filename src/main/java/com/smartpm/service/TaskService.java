@@ -8,7 +8,9 @@ import java.util.List;
 
 public interface TaskService {
 
-    Task create(Long projectId, String title, String description, Long assigneeId, String dueDate);
+    Task create(Long projectId, String title, String description, Long assigneeId, String dueDate,
+                String startDate, String priority, String tags, String dependencyIds,
+                Integer estimatedHours, Integer actualHours, String acceptanceCriteria);
 
     List<Task> listByProject(Long projectId);
 

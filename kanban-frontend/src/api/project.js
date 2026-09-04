@@ -35,3 +35,39 @@ export function removeProjectMember(projectId, userId) {
 export function transferProjectOwner(projectId, userId) {
   return request.post(`/project/${projectId}/transfer-owner`, null, { params: { userId } })
 }
+
+export function getProjectInviteCode(projectId) {
+  return request.get(`/project/${projectId}/invite-code`)
+}
+
+export function joinProjectByInviteCode(inviteCode) {
+  return request.post('/project/join', null, { params: { inviteCode } })
+}
+
+export function updateMyProjectIdentity(projectId, identity) {
+  return request.put(`/project/${projectId}/my-identity`, null, { params: { identity } })
+}
+
+export function listMilestones(projectId) {
+  return request.get(`/project/${projectId}/milestones`)
+}
+
+export function createMilestone(projectId, data) {
+  return request.post(`/project/${projectId}/milestones`, data)
+}
+
+export function updateMilestone(projectId, data) {
+  return request.put(`/project/${projectId}/milestones`, data)
+}
+
+export function deleteMilestone(projectId, milestoneId) {
+  return request.delete(`/project/${projectId}/milestones/${milestoneId}`)
+}
+
+export function generateAiProjectPlan(projectId) {
+  return request.post(`/project/${projectId}/ai-plan`, null, { timeout: 120000 })
+}
+
+export function applyAiProjectPlan(projectId, plan) {
+  return request.post(`/project/${projectId}/ai-plan/apply`, plan)
+}

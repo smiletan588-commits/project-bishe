@@ -2,12 +2,18 @@ package com.smartpm.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.smartpm.common.result.R;
+import com.smartpm.dto.MilestoneDTO;
+import com.smartpm.dto.AIProjectPlanDTO;
+import com.smartpm.common.websocket.TaskWebSocketHandler;
 import com.smartpm.entity.Project;
 import com.smartpm.entity.ProjectMember;
+import com.smartpm.entity.ProjectMilestone;
 import com.smartpm.entity.User;
 import com.smartpm.mapper.ProjectMemberMapper;
 import com.smartpm.mapper.UserMapper;
 import com.smartpm.service.ProjectService;
+import com.smartpm.service.MilestoneService;
+import com.smartpm.service.AIPlanningService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -25,6 +31,9 @@ import java.util.stream.Collectors;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final AIPlanningService aiPlanningService;
+    private final TaskWebSocketHandler wsHandler;
+    private final MilestoneService milestoneService;
     private final ProjectMemberMapper projectMemberMapper;
     private final UserMapper userMapper;
 
@@ -121,6 +130,55 @@ public class ProjectController {
     public R<Void> transferOwner(@PathVariable Long projectId, @RequestParam Long userId) {
         projectService.transferOwner(projectId, userId);
         return R.ok();
+    }
+
+    @GetMapping("/{projectId}/invite-code")
+    public R<Map<String, String>> inviteCode(@PathVariable Long projectId) {
+        return R.ok(Map.of("inviteCode", projectService.getInviteCode(projectId)));
+    }
+
+    @PostMapping("/join")
+    public R<Project> join(@RequestParam String inviteCode) {
+        return R.ok(projectService.joinByInviteCode(inviteCode));
+    }
+
+    @PutMapping("/{projectId}/my-identity")
+    public R<Void> updateMyIdentity(@PathVariable Long projectId, @RequestParam String identity) {
+        projectService.updateMyProjectIdentity(projectId, identity);
+        return R.ok();
+    }
+
+    @GetMapping("/{projectId}/milestones")
+    public R<List<ProjectMilestone>> milestones(@PathVariable Long projectId) {
+        return R.ok(milestoneService.list(projectId));
+    }
+
+    @PostMapping("/{projectId}/milestones")
+    public R<ProjectMilestone> createMilestone(@PathVariable Long projectId, @RequestBody MilestoneDTO dto) {
+        return R.ok(milestoneService.create(projectId, dto));
+    }
+
+    @PutMapping("/{projectId}/milestones")
+    public R<ProjectMilestone> updateMilestone(@PathVariable Long projectId, @RequestBody MilestoneDTO dto) {
+        return R.ok(milestoneService.update(projectId, dto));
+    }
+
+    @DeleteMapping("/{projectId}/milestones/{milestoneId}")
+    public R<Void> deleteMilestone(@PathVariable Long projectId, @PathVariable Long milestoneId) {
+        milestoneService.delete(projectId, milestoneId);
+        return R.ok();
+    }
+
+    @PostMapping("/{projectId}/ai-plan")
+    public R<AIProjectPlanDTO> generateAiPlan(@PathVariable Long projectId) {
+        return R.ok(aiPlanningService.generateProjectPlan(projectId));
+    }
+
+    @PostMapping("/{projectId}/ai-plan/apply")
+    public R<List<com.smartpm.entity.Task>> applyAiPlan(@PathVariable Long projectId, @RequestBody AIProjectPlanDTO plan) {
+        List<com.smartpm.entity.Task> tasks = aiPlanningService.applyProjectPlan(projectId, plan);
+        wsHandler.broadcast(projectId, "{\"type\":\"TASK_UPDATED\"}");
+        return R.ok(tasks);
     }
 
     /**

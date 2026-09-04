@@ -9,7 +9,10 @@ import com.smartpm.entity.Task;
 import com.smartpm.entity.User;
 import com.smartpm.mapper.ProjectMapper;
 import com.smartpm.mapper.ProjectMemberMapper;
+import com.smartpm.mapper.ProjectMilestoneMapper;
 import com.smartpm.mapper.TaskMapper;
+import com.smartpm.mapper.TaskAttachmentMapper;
+import com.smartpm.mapper.AttachmentDownloadLogMapper;
 import com.smartpm.mapper.UserMapper;
 import com.smartpm.service.AIService;
 import com.smartpm.service.ProjectService;
@@ -23,6 +26,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.security.SecureRandom;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,9 +35,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProjectServiceImpl implements ProjectService {
 
+    private static final String INVITE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int INVITE_CODE_LENGTH = 8;
+    private static final SecureRandom INVITE_CODE_RANDOM = new SecureRandom();
+
     private final ProjectMapper projectMapper;
     private final TaskMapper taskMapper;
     private final ProjectMemberMapper projectMemberMapper;
+    private final ProjectMilestoneMapper milestoneMapper;
+    private final TaskAttachmentMapper attachmentMapper;
+    private final AttachmentDownloadLogMapper downloadLogMapper;
     private final UserMapper userMapper;
     private final AIService aiService;
 
@@ -45,6 +57,7 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = new Project();
         project.setName(name);
         project.setDescription(description);
+        project.setInviteCode(generateUniqueInviteCode());
         project.setCreatorId(UserHolder.getUserId());
         project.setCreatedAt(LocalDateTime.now());
         project.setUpdatedAt(LocalDateTime.now());
@@ -113,6 +126,9 @@ public class ProjectServiceImpl implements ProjectService {
         if (!taskIds.isEmpty()) {
             taskMapper.delete(new LambdaQueryWrapper<Task>().in(Task::getParentId, taskIds));
         }
+        downloadLogMapper.delete(new LambdaQueryWrapper<com.smartpm.entity.AttachmentDownloadLog>().eq(com.smartpm.entity.AttachmentDownloadLog::getProjectId, id));
+        attachmentMapper.delete(new LambdaQueryWrapper<com.smartpm.entity.TaskAttachment>().eq(com.smartpm.entity.TaskAttachment::getProjectId, id));
+        milestoneMapper.delete(new LambdaQueryWrapper<com.smartpm.entity.ProjectMilestone>().eq(com.smartpm.entity.ProjectMilestone::getProjectId, id));
         taskMapper.delete(new LambdaQueryWrapper<Task>().eq(Task::getProjectId, id));
         projectMemberMapper.delete(new LambdaQueryWrapper<ProjectMember>().eq(ProjectMember::getProjectId, id));
         projectMapper.deleteById(id);
@@ -204,6 +220,49 @@ public class ProjectServiceImpl implements ProjectService {
         projectMapper.updateById(project);
     }
 
+    @Override
+    @Transactional
+    public String getInviteCode(Long projectId) {
+        requireManager(projectId);
+        Project project = projectMapper.selectById(projectId);
+        if (project.getInviteCode() == null || project.getInviteCode().isBlank()) {
+            project.setInviteCode(generateUniqueInviteCode());
+            projectMapper.updateById(project);
+        }
+        return project.getInviteCode();
+    }
+
+    @Override
+    @Transactional
+    public Project joinByInviteCode(String inviteCode) {
+        if (inviteCode == null || inviteCode.isBlank()) throw new BusinessException("请输入项目邀请码");
+        String normalizedCode = inviteCode.trim().toUpperCase(Locale.ROOT);
+        Project project = projectMapper.selectOne(new LambdaQueryWrapper<Project>()
+                .eq(Project::getInviteCode, normalizedCode));
+        if (project == null) throw new BusinessException("邀请码无效，请向项目负责人确认");
+
+        Long userId = UserHolder.getUserId();
+        ProjectMember existing = projectMemberMapper.selectOne(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, project.getId()).eq(ProjectMember::getUserId, userId));
+        if (existing != null) throw new BusinessException("您已经加入该项目");
+
+        ProjectMember member = new ProjectMember();
+        member.setProjectId(project.getId());
+        member.setUserId(userId);
+        member.setPermission("MEMBER");
+        member.setJoinedAt(LocalDateTime.now());
+        projectMemberMapper.insert(member);
+        return project;
+    }
+
+    @Override
+    public void updateMyProjectIdentity(Long projectId, String identity) {
+        assertProjectAccess(projectId, false);
+        ProjectMember member = getMember(projectId, UserHolder.getUserId());
+        member.setIdentity(validIdentity(identity, null));
+        projectMemberMapper.updateById(member);
+    }
+
     private void requireManager(Long projectId) {
         if (!canManageMembers(projectId)) throw new BusinessException("只有项目管理员可以管理成员");
     }
@@ -233,7 +292,7 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     private String validIdentity(String identity, String fallback) {
-        String value = identity == null || identity.isBlank() ? fallback : identity;
+        String value = identity == null || identity.isBlank() ? fallback : identity.trim().toUpperCase(Locale.ROOT);
         List<String> allowed = List.of("PROJECT_MANAGER", "FRONTEND_DEV", "BACKEND_DEV", "QA_TESTER", "UI_DESIGNER");
         if (value == null || !allowed.contains(value)) throw new BusinessException("无效的岗位身份");
         return value;
@@ -243,6 +302,21 @@ public class ProjectServiceImpl implements ProjectService {
         String value = permission == null || permission.isBlank() ? "MEMBER" : permission;
         if (!List.of("PROJECT_ADMIN", "MEMBER", "VIEWER").contains(value)) throw new BusinessException("无效的成员权限");
         return value;
+    }
+
+    private String generateUniqueInviteCode() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            StringBuilder code = new StringBuilder(INVITE_CODE_LENGTH);
+            for (int index = 0; index < INVITE_CODE_LENGTH; index++) {
+                code.append(INVITE_CODE_CHARS.charAt(INVITE_CODE_RANDOM.nextInt(INVITE_CODE_CHARS.length())));
+            }
+            String candidate = code.toString();
+            if (projectMapper.selectCount(new LambdaQueryWrapper<Project>()
+                    .eq(Project::getInviteCode, candidate)) == 0) {
+                return candidate;
+            }
+        }
+        throw new BusinessException("邀请码生成失败，请重试");
     }
 
     // ── AI 项目周报 ──

@@ -21,11 +21,13 @@ CREATE TABLE IF NOT EXISTS sys_project (
     id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '项目ID',
     name        VARCHAR(255) NOT NULL COMMENT '项目名称',
     description TEXT         DEFAULT NULL COMMENT '项目描述',
+    invite_code VARCHAR(8)   DEFAULT NULL COMMENT '项目邀请码',
     creator_id  BIGINT       NOT NULL COMMENT '创建者ID',
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
-    INDEX idx_creator (creator_id)
+    INDEX idx_creator (creator_id),
+    UNIQUE KEY uk_invite_code (invite_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='项目表';
 
 -- 任务表
@@ -37,8 +39,16 @@ CREATE TABLE IF NOT EXISTS sys_task (
     description TEXT         DEFAULT NULL COMMENT '任务描述',
     status      VARCHAR(32)  NOT NULL DEFAULT 'TODO' COMMENT '状态: TODO/IN_PROGRESS/DONE',
     assignee_id BIGINT       DEFAULT NULL COMMENT '负责人ID',
+    recommended_role VARCHAR(50) DEFAULT NULL COMMENT 'AI推荐角色',
+    priority    VARCHAR(16)  NOT NULL DEFAULT 'MEDIUM' COMMENT 'HIGH/MEDIUM/LOW',
+    tags        VARCHAR(255) DEFAULT NULL COMMENT '任务标签代码，逗号分隔',
     creator_id  BIGINT       NOT NULL COMMENT '创建者ID',
+    start_date  DATE         DEFAULT NULL COMMENT '开始日期',
     due_date    DATE         DEFAULT NULL COMMENT '截止日期',
+    estimated_hours INT      DEFAULT NULL COMMENT '预计工时（小时）',
+    actual_hours INT         DEFAULT NULL COMMENT '实际工时（小时）',
+    dependency_ids VARCHAR(255) DEFAULT NULL COMMENT '前置任务ID，逗号分隔',
+    acceptance_criteria TEXT    DEFAULT NULL COMMENT '任务验收标准',
     order_index INT          NOT NULL DEFAULT 0 COMMENT '排序权重',
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -46,9 +56,6 @@ CREATE TABLE IF NOT EXISTS sys_task (
     INDEX idx_project (project_id),
     INDEX idx_assignee (assignee_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务表';
-
--- 给任务表加 recommended_role 字段
-ALTER TABLE sys_task ADD COLUMN IF NOT EXISTS recommended_role varchar(50) DEFAULT NULL COMMENT 'AI推荐角色' AFTER assignee_id;
 
 -- 项目成员表
 CREATE TABLE IF NOT EXISTS pm_project_member (
@@ -64,6 +71,45 @@ CREATE TABLE IF NOT EXISTS pm_project_member (
     INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='项目成员表';
 
--- 已有数据库升级：补充项目内身份与权限
-ALTER TABLE pm_project_member ADD COLUMN IF NOT EXISTS identity VARCHAR(50) DEFAULT NULL COMMENT '项目内身份';
-ALTER TABLE pm_project_member ADD COLUMN IF NOT EXISTS permission VARCHAR(20) NOT NULL DEFAULT 'MEMBER' COMMENT 'PROJECT_ADMIN/MEMBER/VIEWER';
+-- 项目里程碑表
+CREATE TABLE IF NOT EXISTS pm_project_milestone (
+    id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '里程碑ID',
+    project_id  BIGINT       NOT NULL COMMENT '所属项目ID',
+    name        VARCHAR(128) NOT NULL COMMENT '里程碑名称',
+    description TEXT         DEFAULT NULL COMMENT '说明',
+    target_date DATE         DEFAULT NULL COMMENT '目标日期',
+    status      VARCHAR(16)  NOT NULL DEFAULT 'PLANNED' COMMENT 'PLANNED/COMPLETED',
+    task_ids    VARCHAR(1000) DEFAULT NULL COMMENT '关联任务ID，逗号分隔',
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='项目里程碑';
+
+-- 任务附件和下载审计表。实际文件保存在后端 uploads/tasks 目录。
+CREATE TABLE IF NOT EXISTS pm_task_attachment (
+    id            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '附件ID',
+    task_id       BIGINT       NOT NULL COMMENT '任务ID',
+    project_id    BIGINT       NOT NULL COMMENT '项目ID',
+    original_name VARCHAR(255) NOT NULL COMMENT '原始文件名',
+    stored_name   VARCHAR(255) NOT NULL COMMENT '服务器文件名',
+    content_type  VARCHAR(128) DEFAULT NULL COMMENT '文件类型',
+    size          BIGINT       NOT NULL COMMENT '文件大小（字节）',
+    uploader_id   BIGINT       NOT NULL COMMENT '上传人ID',
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_task (task_id),
+    INDEX idx_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='任务附件';
+
+CREATE TABLE IF NOT EXISTS pm_attachment_download_log (
+    id            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+    attachment_id BIGINT       NOT NULL COMMENT '附件ID',
+    task_id       BIGINT       NOT NULL COMMENT '任务ID',
+    project_id    BIGINT       NOT NULL COMMENT '项目ID',
+    downloader_id BIGINT       NOT NULL COMMENT '下载人ID',
+    downloaded_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_attachment (attachment_id),
+    INDEX idx_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='附件下载记录';

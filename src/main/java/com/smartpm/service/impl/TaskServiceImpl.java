@@ -25,15 +25,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
+
+    private static final Set<String> VALID_PRIORITIES = Set.of("HIGH", "MEDIUM", "LOW");
+    private static final Set<String> VALID_TAGS = Set.of("BUG", "REQUIREMENT", "DESIGN", "DEVELOPMENT", "TESTING", "DOCUMENTATION");
 
     private final TaskMapper taskMapper;
     private final ProjectMapper projectMapper;
@@ -46,7 +48,9 @@ public class TaskServiceImpl implements TaskService {
     // ── 创建主任务 ──
 
     @Override
-    public Task create(Long projectId, String title, String description, Long assigneeId, String dueDate) {
+    public Task create(Long projectId, String title, String description, Long assigneeId, String dueDate,
+                       String startDate, String priority, String tags, String dependencyIds,
+                       Integer estimatedHours, Integer actualHours, String acceptanceCriteria) {
         projectService.assertProjectAccess(projectId, true);
         if (title == null || title.isBlank()) {
             throw new BusinessException("任务标题不能为空");
@@ -63,9 +67,19 @@ public class TaskServiceImpl implements TaskService {
         task.setDescription(description);
         task.setStatus("TODO");
         task.setAssigneeId(assigneeId);
+        task.setPriority(normalizePriority(priority));
+        task.setTags(normalizeTags(tags));
+        task.setDependencyIds(normalizeDependencyIds(projectId, null, dependencyIds));
         if (dueDate != null && !dueDate.isBlank()) {
             task.setDueDate(LocalDate.parse(dueDate));
         }
+        if (startDate != null && !startDate.isBlank()) {
+            task.setStartDate(LocalDate.parse(startDate));
+        }
+        validateDates(task.getStartDate(), task.getDueDate());
+        task.setEstimatedHours(normalizeHours(estimatedHours, "预计工时"));
+        task.setActualHours(normalizeHours(actualHours, "实际工时"));
+        task.setAcceptanceCriteria(acceptanceCriteria);
         task.setCreatorId(UserHolder.getUserId());
         task.setOrderIndex(0);
         task.setCreatedAt(LocalDateTime.now());
@@ -80,12 +94,14 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public List<Task> listByProject(Long projectId) {
         projectService.assertProjectAccess(projectId, false);
-        return taskMapper.selectList(
+        List<Task> tasks = taskMapper.selectList(
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getProjectId, projectId)
                         .isNull(Task::getParentId)
                         .orderByAsc(Task::getOrderIndex)
                         .orderByDesc(Task::getCreatedAt));
+        applyBlockedStates(projectId, tasks);
+        return tasks;
     }
 
     // ── 查询子任务列表 ──
@@ -97,10 +113,12 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException("任务不存在");
         }
         projectService.assertProjectAccess(task.getProjectId(), false);
-        return taskMapper.selectList(
+        List<Task> subtasks = taskMapper.selectList(
                 new LambdaQueryWrapper<Task>()
                         .eq(Task::getParentId, taskId)
                         .orderByAsc(Task::getCreatedAt));
+        applyBlockedStates(task.getProjectId(), subtasks);
+        return subtasks;
     }
 
     // ── 更新任务 ──
@@ -136,6 +154,31 @@ public class TaskServiceImpl implements TaskService {
         if (dto.getDueDate() != null) {
             task.setDueDate(dto.getDueDate().isBlank() ? null : LocalDate.parse(dto.getDueDate()));
         }
+        if (dto.getStartDate() != null) {
+            task.setStartDate(dto.getStartDate().isBlank() ? null : LocalDate.parse(dto.getStartDate()));
+        }
+        validateDates(task.getStartDate(), task.getDueDate());
+        if (dto.getPriority() != null) {
+            task.setPriority(normalizePriority(dto.getPriority()));
+        }
+        if (dto.getTags() != null) {
+            task.setTags(normalizeTags(dto.getTags()));
+        }
+        if (dto.getDependencyIds() != null) {
+            task.setDependencyIds(normalizeDependencyIds(task.getProjectId(), task.getId(), dto.getDependencyIds()));
+        }
+        if (dto.getEstimatedHours() != null) {
+            task.setEstimatedHours(normalizeHours(dto.getEstimatedHours(), "预计工时"));
+        }
+        if (dto.getActualHours() != null) {
+            task.setActualHours(normalizeHours(dto.getActualHours(), "实际工时"));
+        }
+        if (dto.getAcceptanceCriteria() != null) {
+            task.setAcceptanceCriteria(dto.getAcceptanceCriteria());
+        }
+        if (!"TODO".equals(task.getStatus())) {
+            assertDependenciesCompleted(task);
+        }
         if (dto.getOrderIndex() != null) {
             task.setOrderIndex(dto.getOrderIndex());
         }
@@ -169,6 +212,9 @@ public class TaskServiceImpl implements TaskService {
 
         Long projectId = task.getProjectId();
         projectService.assertProjectAccess(projectId, true);
+        if (!"TODO".equals(targetStatus)) {
+            assertDependenciesCompleted(task);
+        }
         String sourceStatus = task.getStatus();
         int sourceOrder = task.getOrderIndex() != null ? task.getOrderIndex() : 0;
 
@@ -239,6 +285,7 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException("任务不存在");
         }
         projectService.assertProjectAccess(task.getProjectId(), true);
+        assertNoTaskDependsOn(task);
         // 级联删除所有子任务
         taskMapper.delete(new LambdaQueryWrapper<Task>().eq(Task::getParentId, id));
         taskMapper.deleteById(id);
@@ -257,6 +304,9 @@ public class TaskServiceImpl implements TaskService {
             throw new BusinessException("该任务为主任务，不支持此操作");
         }
         String newStatus = "DONE".equals(task.getStatus()) ? "TODO" : "DONE";
+        if (!"TODO".equals(newStatus)) {
+            assertDependenciesCompleted(task);
+        }
         task.setStatus(newStatus);
         task.setUpdatedAt(LocalDateTime.now());
         taskMapper.updateById(task);
@@ -274,20 +324,8 @@ public class TaskServiceImpl implements TaskService {
         }
         projectService.assertProjectAccess(task.getProjectId(), true);
 
-        // 查询项目成员及其专业身份
-        List<ProjectMember> members = projectMemberMapper.selectList(
-                new LambdaQueryWrapper<ProjectMember>()
-                        .eq(ProjectMember::getProjectId, task.getProjectId()));
-        List<Long> memberUserIds = members.stream().map(ProjectMember::getUserId).toList();
-        Map<String, Long> identityUserMap = new java.util.HashMap<>();
-        if (!memberUserIds.isEmpty()) {
-            List<User> users = userMapper.selectBatchIds(memberUserIds);
-            for (User u : users) {
-                if (u.getIdentity() != null && !u.getIdentity().isBlank()) {
-                    identityUserMap.putIfAbsent(u.getIdentity(), u.getId());
-                }
-            }
-        }
+        // 查询项目成员及其项目内岗位，用于自动分派。
+        Map<String, Long> identityUserMap = buildIdentityUserMap(task.getProjectId());
 
         String prompt = buildDecomposePrompt(task.getTitle(), task.getDescription());
         String aiResponse = aiService.chat(prompt);
@@ -305,6 +343,8 @@ public class TaskServiceImpl implements TaskService {
             sub.setTitle(st.get("title"));
             sub.setDescription(st.getOrDefault("description", ""));
             sub.setStatus("TODO");
+            sub.setPriority("MEDIUM");
+            sub.setTags("DEVELOPMENT");
             sub.setCreatorId(UserHolder.getUserId());
             sub.setOrderIndex(0);
             String recommendedRole = st.get("recommended_role");
@@ -427,6 +467,8 @@ public class TaskServiceImpl implements TaskService {
             task.setTitle(title.trim());
             task.setDescription(tm.getOrDefault("description", ""));
             task.setStatus("TODO");
+            task.setPriority("MEDIUM");
+            task.setTags("DEVELOPMENT");
             task.setCreatorId(UserHolder.getUserId());
             task.setOrderIndex(order++);
             String recommendedRole = tm.get("recommended_role");
@@ -442,6 +484,127 @@ public class TaskServiceImpl implements TaskService {
         return created;
     }
 
+    private String normalizePriority(String priority) {
+        String value = priority == null || priority.isBlank() ? "MEDIUM" : priority.trim().toUpperCase(Locale.ROOT);
+        if (!VALID_PRIORITIES.contains(value)) {
+            throw new BusinessException("无效的任务优先级");
+        }
+        return value;
+    }
+
+    private String normalizeTags(String tags) {
+        if (tags == null || tags.isBlank()) return null;
+        LinkedHashSet<String> values = Arrays.stream(tags.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(value -> value.toUpperCase(Locale.ROOT))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (!VALID_TAGS.containsAll(values)) {
+            throw new BusinessException("任务标签包含不支持的类型");
+        }
+        return values.isEmpty() ? null : String.join(",", values);
+    }
+
+    private String normalizeDependencyIds(Long projectId, Long taskId, String dependencyIds) {
+        if (dependencyIds == null || dependencyIds.isBlank()) return null;
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        try {
+            for (String rawId : dependencyIds.split(",")) {
+                if (!rawId.isBlank()) ids.add(Long.valueOf(rawId.trim()));
+            }
+        } catch (NumberFormatException e) {
+            throw new BusinessException("前置任务格式无效");
+        }
+        if (taskId != null && ids.contains(taskId)) {
+            throw new BusinessException("任务不能依赖自身");
+        }
+        if (ids.isEmpty()) return null;
+        List<Task> dependencies = taskMapper.selectBatchIds(ids);
+        if (dependencies.size() != ids.size() || dependencies.stream().anyMatch(task -> !projectId.equals(task.getProjectId()))) {
+            throw new BusinessException("前置任务不存在或不属于当前项目");
+        }
+        if (taskId != null && ids.stream().anyMatch(id -> dependencyReaches(id, taskId, new HashSet<>()))) {
+            throw new BusinessException("前置依赖不能形成循环");
+        }
+        return ids.stream().map(String::valueOf).collect(Collectors.joining(","));
+    }
+
+    private Integer normalizeHours(Integer hours, String fieldName) {
+        if (hours != null && (hours < 0 || hours > 10000)) {
+            throw new BusinessException(fieldName + "应在 0 到 10000 小时之间");
+        }
+        return hours;
+    }
+
+    private void validateDates(LocalDate startDate, LocalDate dueDate) {
+        if (startDate != null && dueDate != null && startDate.isAfter(dueDate)) {
+            throw new BusinessException("开始日期不能晚于截止日期");
+        }
+    }
+
+    private List<Long> dependencyIdList(Task task) {
+        if (task.getDependencyIds() == null || task.getDependencyIds().isBlank()) return List.of();
+        try {
+            return Arrays.stream(task.getDependencyIds().split(","))
+                    .filter(value -> !value.isBlank())
+                    .map(value -> Long.valueOf(value.trim()))
+                    .toList();
+        } catch (NumberFormatException ignored) {
+            return List.of();
+        }
+    }
+
+    private boolean dependencyReaches(Long currentId, Long targetId, Set<Long> visited) {
+        if (!visited.add(currentId)) return false;
+        if (currentId.equals(targetId)) return true;
+        Task current = taskMapper.selectById(currentId);
+        if (current == null) return false;
+        return dependencyIdList(current).stream().anyMatch(id -> dependencyReaches(id, targetId, visited));
+    }
+
+    private void assertDependenciesCompleted(Task task) {
+        List<Long> ids = dependencyIdList(task);
+        if (ids.isEmpty()) return;
+        List<Task> dependencies = taskMapper.selectBatchIds(ids);
+        List<String> unfinished = dependencies.stream()
+                .filter(dependency -> !"DONE".equals(dependency.getStatus()))
+                .map(Task::getTitle)
+                .toList();
+        if (!unfinished.isEmpty()) {
+            throw new BusinessException("任务被前置任务阻塞：" + String.join("、", unfinished));
+        }
+    }
+
+    private void applyBlockedStates(Long projectId, List<Task> tasks) {
+        if (tasks.isEmpty()) return;
+        Map<Long, Task> taskMap = taskMapper.selectList(new LambdaQueryWrapper<Task>()
+                        .eq(Task::getProjectId, projectId))
+                .stream().collect(Collectors.toMap(Task::getId, task -> task));
+        for (Task task : tasks) {
+            List<String> blockedBy = dependencyIdList(task).stream()
+                    .map(taskMap::get)
+                    .filter(Objects::nonNull)
+                    .filter(dependency -> !"DONE".equals(dependency.getStatus()))
+                    .map(Task::getTitle)
+                    .toList();
+            task.setBlocked(!blockedBy.isEmpty());
+            task.setBlockedByTaskTitles(blockedBy);
+        }
+    }
+
+    private void assertNoTaskDependsOn(Task task) {
+        List<Task> projectTasks = taskMapper.selectList(new LambdaQueryWrapper<Task>()
+                .eq(Task::getProjectId, task.getProjectId()));
+        List<String> dependents = projectTasks.stream()
+                .filter(candidate -> !candidate.getId().equals(task.getId()))
+                .filter(candidate -> dependencyIdList(candidate).contains(task.getId()))
+                .map(Task::getTitle)
+                .toList();
+        if (!dependents.isEmpty()) {
+            throw new BusinessException("该任务被以下任务依赖，无法删除：" + String.join("、", dependents));
+        }
+    }
+
     /** 根据项目成员的专业身份建立自动指派映射。 */
     private Map<String, Long> buildIdentityUserMap(Long projectId) {
         List<ProjectMember> members = projectMemberMapper.selectList(
@@ -451,10 +614,15 @@ public class TaskServiceImpl implements TaskService {
         if (members.isEmpty()) return identityUserMap;
 
         List<Long> userIds = members.stream().map(ProjectMember::getUserId).toList();
-        List<User> users = userMapper.selectBatchIds(userIds);
-        for (User user : users) {
-            if (user.getIdentity() != null && !user.getIdentity().isBlank()) {
-                identityUserMap.putIfAbsent(user.getIdentity(), user.getId());
+        Map<Long, User> users = userMapper.selectBatchIds(userIds).stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, user -> user));
+        for (ProjectMember member : members) {
+            User user = users.get(member.getUserId());
+            String identity = member.getIdentity() != null && !member.getIdentity().isBlank()
+                    ? member.getIdentity()
+                    : user != null ? user.getIdentity() : null;
+            if (identity != null && !identity.isBlank()) {
+                identityUserMap.putIfAbsent(identity, member.getUserId());
             }
         }
         return identityUserMap;

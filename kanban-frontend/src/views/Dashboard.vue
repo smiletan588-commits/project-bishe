@@ -35,9 +35,10 @@
           <h2>我的项目</h2>
           <p class="page-desc">{{ projects.length }} 个项目</p>
         </div>
-        <el-button type="primary" size="large" @click="dialogVisible = true">
-          + 新建项目
-        </el-button>
+        <div class="page-actions">
+          <el-button size="large" @click="joinDialogVisible = true">加入项目</el-button>
+          <el-button type="primary" size="large" @click="dialogVisible = true">+ 新建项目</el-button>
+        </div>
       </div>
 
       <div v-loading="loading" class="card-grid">
@@ -91,8 +92,11 @@
             </svg>
           </div>
           <h3>还没有项目</h3>
-          <p>创建你的第一个项目，开始管理任务</p>
-          <el-button type="primary" @click="dialogVisible = true">创建项目</el-button>
+          <p>输入团队提供的邀请码，加入后即可参与协作</p>
+          <div class="empty-actions">
+            <el-button @click="joinDialogVisible = true">输入邀请码加入</el-button>
+            <el-button type="primary" @click="dialogVisible = true">创建项目</el-button>
+          </div>
         </div>
       </div>
     </main>
@@ -111,6 +115,22 @@
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="handleCreate">创建项目</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="joinDialogVisible" title="加入项目" width="420px" :close-on-click-modal="false">
+      <div class="dialog-form">
+        <div class="input-group">
+          <label>项目邀请码</label>
+          <el-input v-model="joinForm.inviteCode" maxlength="8" placeholder="请输入 8 位邀请码" clearable @keyup.enter="handleJoin">
+            <template #prefix>⌘</template>
+          </el-input>
+          <p class="form-hint">邀请码由项目负责人在“团队成员”中生成并分享给你。</p>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="joinDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="joining" @click="handleJoin">加入并选择岗位</el-button>
       </template>
     </el-dialog>
 
@@ -133,7 +153,15 @@
 
     <el-dialog v-model="membersDialogVisible" :title="`${memberProject?.name || ''} · 团队成员`" width="720px" class="members-dialog" :close-on-click-modal="false">
       <div class="member-invite" v-if="memberManageable">
-        <div class="member-invite-title">邀请成员加入项目</div>
+        <div class="member-invite-title">项目邀请码</div>
+        <div class="invite-code-row">
+          <code>{{ inviteCode || '正在生成…' }}</code>
+          <el-button size="small" :disabled="!inviteCode" @click="copyInviteCode">复制邀请码</el-button>
+        </div>
+        <p class="form-hint">成员注册后可在主页输入邀请码，自行加入项目并选择岗位。</p>
+      </div>
+      <div class="member-invite" v-if="memberManageable">
+        <div class="member-invite-title">按用户名邀请成员</div>
         <div class="member-invite-form">
           <el-input v-model="inviteForm.username" placeholder="输入对方用户名" clearable />
           <el-select v-model="inviteForm.identity" placeholder="项目身份" style="width: 150px">
@@ -228,7 +256,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MoreFilled, Edit, Delete, Document, UserFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
-import { listProjects, createProject, updateProject, deleteProject, listProjectMembers, inviteProjectMember, updateProjectMember, removeProjectMember, transferProjectOwner } from '@/api/project'
+import { listProjects, createProject, updateProject, deleteProject, listProjectMembers, inviteProjectMember, updateProjectMember, removeProjectMember, transferProjectOwner, getProjectInviteCode, joinProjectByInviteCode } from '@/api/project'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -237,6 +265,9 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const submitting = ref(false)
 const form = reactive({ name: '', description: '' })
+const joinDialogVisible = ref(false)
+const joining = ref(false)
+const joinForm = reactive({ inviteCode: '' })
 
 const editDialogVisible = ref(false)
 const editSubmitting = ref(false)
@@ -249,6 +280,7 @@ const memberLoading = ref(false)
 const memberManageable = ref(false)
 const inviteSubmitting = ref(false)
 const inviteForm = reactive({ username: '', identity: 'FRONTEND_DEV', permission: 'MEMBER' })
+const inviteCode = ref('')
 
 const showIdentityDialog = ref(false)
 const selecting = ref(null)
@@ -336,6 +368,37 @@ async function openMembersDialog(project) {
   memberProject.value = project
   membersDialogVisible.value = true
   await fetchMembersForManagement()
+  if (memberManageable.value) {
+    const res = await getProjectInviteCode(project.id)
+    inviteCode.value = res.data?.data?.inviteCode || ''
+  }
+}
+
+async function copyInviteCode() {
+  try {
+    await navigator.clipboard.writeText(inviteCode.value)
+    ElMessage.success('邀请码已复制')
+  } catch {
+    ElMessage.info(`邀请码：${inviteCode.value}`)
+  }
+}
+
+async function handleJoin() {
+  const code = joinForm.inviteCode.trim().toUpperCase()
+  if (!code) { ElMessage.warning('请输入项目邀请码'); return }
+  joining.value = true
+  try {
+    const res = await joinProjectByInviteCode(code)
+    const project = res.data?.data
+    joinDialogVisible.value = false
+    joinForm.inviteCode = ''
+    ElMessage.success('已加入项目，请选择你在该项目中的岗位')
+    router.push({ path: `/project/${project.id}`, query: { setupRole: '1' } })
+  } catch (e) {
+    ElMessage.error(e.response?.data?.msg || '加入项目失败')
+  } finally {
+    joining.value = false
+  }
 }
 
 async function fetchMembersForManagement() {
@@ -434,9 +497,9 @@ function handleLogout() {
   router.push('/login')
 }
 
-onMounted(() => {
-  fetchProjects()
-  if (userStore.needsIdentityPrompt) {
+onMounted(async () => {
+  await fetchProjects()
+  if (userStore.needsIdentityPrompt && projects.value.length > 0) {
     showIdentityDialog.value = true
   }
 })
@@ -475,6 +538,7 @@ onMounted(() => {
 
 .main { max-width: 1200px; margin: 0 auto; padding: 52px 30px; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+.page-actions { display: flex; gap: 10px; }
 .page-header h2 { margin: 0; font-family: var(--font-display); font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
 .page-desc { margin: 4px 0 0; font-size: 13px; color: var(--text-tertiary); }
 .page-header :deep(.el-button--primary) {
@@ -519,6 +583,7 @@ onMounted(() => {
 .empty-icon { margin-bottom: 16px; }
 .empty-state h3 { margin: 0; font-size: 18px; color: var(--text-primary); }
 .empty-state p { margin: 8px 0 20px; color: var(--text-tertiary); font-size: 14px; }
+.empty-actions { display: flex; justify-content: center; gap: 10px; }
 
 .dialog-form .input-group { margin-bottom: 16px; }
 .dialog-form label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
@@ -530,6 +595,9 @@ onMounted(() => {
 .member-invite-title { margin-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .member-invite-form { display: flex; gap: 8px; align-items: center; }
 .member-invite-form .el-input { flex: 1; }
+.invite-code-row { display: flex; align-items: center; gap: 10px; }
+.invite-code-row code { flex: 1; padding: 9px 12px; border-radius: 6px; background: #242321; color: #F3C66D; font-size: 18px; font-weight: 700; letter-spacing: .14em; text-align: center; }
+.form-hint { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-tertiary); }
 .member-person { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .member-person small { color: var(--text-tertiary); font-size: 11px; font-weight: 400; }
 .member-avatar { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; }
@@ -538,6 +606,8 @@ onMounted(() => {
 @media (max-width: 640px) {
   .card-grid { grid-template-columns: 1fr; }
   .page-header { flex-direction: column; gap: 12px; }
+  .page-actions { width: 100%; }
+  .page-actions .el-button { flex: 1; }
 }
 
 /* ── 身份选择弹窗 ── */
