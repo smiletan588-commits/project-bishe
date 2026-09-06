@@ -1,5 +1,6 @@
 # ---------- 后端构建阶段 ----------
-FROM maven:3.9.9-eclipse-temurin-17 AS backend-builder
+ARG DOCKER_REGISTRY=m.daocloud.io/docker.io
+FROM ${DOCKER_REGISTRY}/library/maven:3.9.9-eclipse-temurin-17 AS backend-builder
 
 WORKDIR /build
 COPY pom.xml .
@@ -8,7 +9,7 @@ COPY src ./src
 RUN mvn -B -DskipTests package
 
 # ---------- 后端运行阶段 ----------
-FROM eclipse-temurin:17-jre-alpine
+FROM ${DOCKER_REGISTRY}/library/eclipse-temurin:17-jre-alpine
 
 # curl 用于 Docker healthcheck
 RUN apk add --no-cache curl

@@ -362,6 +362,14 @@
             </el-select>
           </div>
         </div>
+        <div v-if="editingTask && isProjectOwner" class="input-group">
+          <label>任务负责人 <span class="optional">项目负责人可纠正误接任务</span></label>
+          <el-select v-model="form.assigneeId" clearable filterable placeholder="暂不指派" size="large" style="width:100%">
+            <el-option v-for="member in projectMembers" :key="member.userId"
+              :label="`${member.nickname || member.username} · ${roleLabel(member.identity)}`"
+              :value="member.userId" />
+          </el-select>
+        </div>
         <div class="input-row">
           <div class="input-group">
             <label>开始日期 <span class="optional">选填</span></label>
@@ -514,6 +522,9 @@ const priorityConfig = { HIGH: '高优先级', MEDIUM: '中优先级', LOW: '低
 const hasTasks = computed(() =>
   allTasks.value.length > 0
 )
+const isProjectOwner = computed(() =>
+  projectMembers.value.some(member => member.owner && member.userId === userStore.userInfo?.userId)
+)
 const dependencyCandidates = computed(() => allTasks.value.filter(task => task.id !== editingTask.value?.id))
 
 function assigneeName(task) {
@@ -598,7 +609,7 @@ function statusClass(s) {
 const dialogVisible = ref(false)
 const submitting = ref(false)
 const editingTask = ref(null)
-const form = reactive({ title: '', description: '', status: 'TODO', dueDate: null, startDate: null, priority: 'MEDIUM', tags: [], dependencyIds: [], estimatedHours: null, actualHours: null, acceptanceCriteria: '' })
+const form = reactive({ title: '', description: '', status: 'TODO', assigneeId: null, dueDate: null, startDate: null, priority: 'MEDIUM', tags: [], dependencyIds: [], estimatedHours: null, actualHours: null, acceptanceCriteria: '' })
 
 function isOverdue(dateStr) {
   if (!dateStr) return false
@@ -798,6 +809,7 @@ function openCreate(defaultStatus) {
   form.title = ''
   form.description = ''
   form.status = defaultStatus
+  form.assigneeId = null
   form.dueDate = null
   form.startDate = null
   form.priority = 'MEDIUM'
@@ -814,6 +826,7 @@ function openEdit(task) {
   form.title = task.title || ''
   form.description = task.description || ''
   form.status = task.status || 'TODO'
+  form.assigneeId = task.assigneeId ?? null
   form.dueDate = task.dueDate || null
   form.startDate = task.startDate || null
   form.priority = task.priority || 'MEDIUM'
@@ -830,7 +843,7 @@ async function handleSubmit() {
   submitting.value = true
   try {
     if (editingTask.value) {
-      await updateTask({
+      const updatePayload = {
         id: editingTask.value.id,
         title: form.title,
         description: form.description,
@@ -843,7 +856,12 @@ async function handleSubmit() {
         estimatedHours: form.estimatedHours,
         actualHours: form.actualHours,
         acceptanceCriteria: form.acceptanceCriteria
-      })
+      }
+      if (isProjectOwner.value) {
+        if (form.assigneeId) updatePayload.assigneeId = form.assigneeId
+        else updatePayload.clearAssignee = true
+      }
+      await updateTask(updatePayload)
       ElMessage.success('任务已更新')
     } else {
       await createTask(projectId, form.title, form.description, undefined, form.dueDate || undefined,

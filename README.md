@@ -6,9 +6,11 @@ SmartPM 是一个融合 AI 任务拆解、岗位协作、实时看板和项目�
 
 ### Windows
 
-双击 `start.bat` 即可启动。脚本会优先使用 Docker；如果电脑还没有 Docker Desktop，会自动切换到本地开发模式，启动本地 Spring Boot 后端和 Vue 前端。
+安装 Docker Desktop 后，双击 `start.bat` 即可一键构建并启动 MySQL、Redis、Spring Boot 后端和 Nginx 前端。Docker Desktop 未运行时，脚本会尝试自动启动并等待其就绪。
 
-本地开发模式需要：Java 17、Maven、Node.js/npm，以及运行在 `localhost:3306` 的 MySQL。安装并启动 Docker Desktop 后，脚本会自动使用完整容器模式。
+首次运行需要下载基础镜像和项目依赖，可能耗时数分钟。启动完成后脚本会自动打开 <http://localhost:3000>；数据库数据保存在 Docker 命名卷中，关闭启动窗口不会停止服务。
+
+如果 Windows/Hyper-V 占用了 `3000` 端口，启动脚本会请求一次管理员权限，将异常的低位动态端口范围恢复为 Windows 标准范围，然后继续启动 Docker。
 
 ### macOS / Linux
 
@@ -22,7 +24,7 @@ SmartPM 是一个融合 AI 任务拆解、岗位协作、实时看板和项目�
 docker compose up -d --build
 ```
 
-Docker 模式启动完成后访问 <http://localhost>；本地开发模式访问 <http://localhost:3000>。
+启动完成后访问 <http://localhost:3000>。
 
 ## 环境变量
 
@@ -31,6 +33,8 @@ Docker 模式启动完成后访问 <http://localhost>；本地开发模式访问
 ```env
 MYSQL_ROOT_PASSWORD=修改为安全密码
 AI_API_KEY=你的模型接口密钥
+# 默认使用国内 Docker Hub 镜像代理；海外环境可改为 docker.io
+DOCKER_REGISTRY_MIRROR=m.daocloud.io/docker.io
 ```
 
 AI 功能需要配置 `AI_API_KEY`；不配置时，基础项目管理功能仍可启动。

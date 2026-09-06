@@ -144,7 +144,11 @@ public class TaskServiceImpl implements TaskService {
             }
             task.setStatus(status);
         }
-        if (dto.getAssigneeId() != null) {
+        if (Boolean.TRUE.equals(dto.getClearAssignee())) {
+            assertCanChangeAssignee(task, null);
+            task.setAssigneeId(null);
+        } else if (dto.getAssigneeId() != null && !Objects.equals(task.getAssigneeId(), dto.getAssigneeId())) {
+            assertCanChangeAssignee(task, dto.getAssigneeId());
             task.setAssigneeId(dto.getAssigneeId());
         }
         if (dto.getDueDate() != null) {
@@ -182,6 +186,40 @@ public class TaskServiceImpl implements TaskService {
 
         taskMapper.updateById(task);
         return task;
+    }
+
+    /**
+     * 项目负责人可以改派或清空负责人；普通成员只允许接取尚未分配的任务，
+     * 且只能指派给自己。所有被指派者都必须属于当前项目。
+     */
+    private void assertCanChangeAssignee(Task task, Long newAssigneeId) {
+        Project project = projectMapper.selectById(task.getProjectId());
+        Long currentUserId = UserHolder.getUserId();
+        boolean isProjectOwner = project != null && Objects.equals(project.getCreatorId(), currentUserId);
+
+        if (isProjectOwner) {
+            if (newAssigneeId != null) {
+                assertProjectMember(task.getProjectId(), project, newAssigneeId);
+            }
+            return;
+        }
+
+        boolean isSelfClaim = task.getAssigneeId() == null
+                && newAssigneeId != null
+                && Objects.equals(newAssigneeId, currentUserId);
+        if (!isSelfClaim) {
+            throw new BusinessException("只有项目负责人可以改派或清空任务负责人");
+        }
+    }
+
+    private void assertProjectMember(Long projectId, Project project, Long userId) {
+        if (Objects.equals(project.getCreatorId(), userId)) return;
+        Long memberCount = projectMemberMapper.selectCount(new LambdaQueryWrapper<ProjectMember>()
+                .eq(ProjectMember::getProjectId, projectId)
+                .eq(ProjectMember::getUserId, userId));
+        if (memberCount == 0) {
+            throw new BusinessException("只能将任务指派给当前项目成员");
+        }
     }
 
     // ── 拖拽排序（仅操作主任务，忽略子任务）──

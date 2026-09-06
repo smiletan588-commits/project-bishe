@@ -1,9 +1,7 @@
-version: "3.8"
-
 services:
   # ── MySQL 8.0 ──────────────────────────────────────────
   mysql:
-    image: mysql:8.0
+    image: ${DOCKER_REGISTRY_MIRROR:-m.daocloud.io/docker.io}/library/mysql:8.0
     container_name: smartpm-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
@@ -27,7 +25,7 @@ services:
 
   # ── Redis 7 ────────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: ${DOCKER_REGISTRY_MIRROR:-m.daocloud.io/docker.io}/library/redis:7-alpine
     container_name: smartpm-redis
     command: redis-server --appendonly yes
     volumes:
@@ -43,7 +41,10 @@ services:
 
   # ── Spring Boot 后端 ───────────────────────────────────
   backend:
-    build: .
+    build:
+      context: .
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY_MIRROR:-m.daocloud.io/docker.io}
     container_name: smartpm-backend
     environment:
       - MYSQL_HOST=mysql
@@ -64,9 +65,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.nginx
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY_MIRROR:-m.daocloud.io/docker.io}
     container_name: smartpm-nginx
     ports:
-      - "80:80"
+      - "127.0.0.1:3000:80"
     depends_on:
       backend:
         condition: service_healthy

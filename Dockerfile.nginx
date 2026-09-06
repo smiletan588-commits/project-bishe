@@ -1,5 +1,6 @@
 # ---------- 前端构建阶段 ----------
-FROM node:20-alpine AS frontend-builder
+ARG DOCKER_REGISTRY=m.daocloud.io/docker.io
+FROM ${DOCKER_REGISTRY}/library/node:20-alpine AS frontend-builder
 
 WORKDIR /frontend
 COPY kanban-frontend/package*.json ./
@@ -8,7 +9,7 @@ COPY kanban-frontend/ ./
 RUN npm run build
 
 # ---------- Nginx 运行阶段 ----------
-FROM nginx:alpine
+FROM ${DOCKER_REGISTRY}/library/nginx:alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=frontend-builder /frontend/dist /usr/share/nginx/html
@@ -16,4 +17,4 @@ COPY --from=frontend-builder /frontend/dist /usr/share/nginx/html
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+    CMD wget --quiet --tries=1 --spider http://127.0.0.1/ || exit 1

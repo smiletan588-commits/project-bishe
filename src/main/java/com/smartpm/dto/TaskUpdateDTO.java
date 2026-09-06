@@ -15,6 +15,9 @@ public class TaskUpdateDTO {
 
     private Long assigneeId;
 
+    /** 项目负责人将其设为 true 时，可清空误接取的任务负责人。 */
+    private Boolean clearAssignee;
+
     private String dueDate;
 
     private String startDate;

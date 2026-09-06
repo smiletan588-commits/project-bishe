@@ -28,19 +28,6 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('element-plus')) return 'element-plus'
-            if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) return 'vue-vendor'
-            if (id.includes('vuedraggable') || id.includes('sortablejs')) return 'draggable'
-            if (id.includes('markdown-it')) return 'markdown'
-            return 'vendor'
-          }
-        }
-      }
-    }
+    chunkSizeWarningLimit: 1000
   }
 })
