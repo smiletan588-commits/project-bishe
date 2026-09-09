@@ -2033,7 +2033,8 @@ ALTER TABLE sys_user ADD COLUMN identity varchar(50) DEFAULT NULL COMMENT '专�
 
 ### 2026-09-09 - GitHub 上传准备
 
-**操作：** 审核版本库边界与敏感文件忽略规则，确认 `.env`、依赖、构建产物、IDE 配置和项目报告不会进入远程仓库；准备初始化 `main` 分支并提交当前稳定版本。
+**操作：** 审核版本库边界与敏感文件忽略规则，确认 `.env`、依赖、构建产物、IDE 配置和项目报告不会进入新提交；将当前稳定版本提交并推送到 `smiletan588-commits/project-bishe` 的 `main` 分支。
 **影响文件：** `.gitignore`、`project_history.md`。
-**原因：** 当前目录尚未初始化 Git，且本机未安装 GitHub CLI，需要先形成可安全推送的本地提交，再绑定用户指定的 GitHub 仓库。
-**状态：** ⏳ 进行中
+**原因：** 当前目录最初未初始化 Git，因此先关联远程已有历史，再以普通快进提交上传，避免覆盖远程提交。
+**验证：** 主提交 `fef1eee` 已成功推送；本地 `main` 已设置为跟踪 `origin/main`，未使用强制推送。
+**状态：** ✅ 完成
