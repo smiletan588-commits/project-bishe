@@ -1,24 +1,15 @@
 <template>
   <div class="login-page">
-    <div class="login-panel">
+    <section class="login-layout">
       <div class="brand-side">
-        <div class="brand-content">
-          <div class="logo-mark">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.15)"/>
-              <rect x="8" y="10" width="10" height="8" rx="2" fill="white" opacity="0.9"/>
-              <rect x="22" y="10" width="10" height="8" rx="2" fill="white" opacity="0.7"/>
-              <rect x="8" y="22" width="10" height="8" rx="2" fill="white" opacity="0.6"/>
-              <rect x="22" y="22" width="10" height="8" rx="2" fill="white" opacity="0.8"/>
-            </svg>
-          </div>
-          <h1>SmartPM</h1>
-          <p>轻量级项目管理，让你的团队协作井然有序</p>
+        <BrandMark />
+        <div class="brand-copy">
+          <p>轻量级项目管理，<br>让你的团队协作井然有序</p>
         </div>
       </div>
 
       <div class="form-side">
-        <div class="form-wrapper">
+        <div class="form-wrapper" aria-live="polite">
           <h2>{{ activeTab === 'login' ? '欢迎回来' : '创建账户' }}</h2>
           <p class="subtitle">
             {{ activeTab === 'login' ? '登录以继续你的工作' : '注册后即可创建和管理项目' }}
@@ -41,7 +32,7 @@
             </div>
             <el-button type="primary" size="large" :loading="loading" class="submit-btn"
               @click="handleLogin">
-              登 录
+              登录
             </el-button>
           </template>
 
@@ -61,12 +52,12 @@
             </div>
             <el-button type="primary" size="large" :loading="loading" class="submit-btn"
               @click="handleRegister">
-              注 册
+              注册
             </el-button>
           </template>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -75,6 +66,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
+import BrandMark from '@/components/BrandMark.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -119,123 +111,54 @@ async function handleRegister() {
 
 <style scoped>
 .login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 100dvh;
+  padding: clamp(18px, 4vw, 52px);
   background: var(--bg-base);
-  padding: 24px;
 }
-.login-panel {
-  display: flex;
-  width: 880px;
-  min-height: 560px;
-  background: #242321;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+.login-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, .85fr) minmax(460px, 1.15fr);
+  width: min(1120px, 100%);
+  min-height: calc(100dvh - clamp(36px, 8vw, 104px));
+  margin: 0 auto;
   overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 .brand-side {
-  flex: 0 0 380px;
-  background: #1F1F1E;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(28px, 5vw, 62px);
+  border-right: 1px solid var(--border-light);
+  background: var(--brand-soft);
 }
-.brand-content {
-  text-align: center;
-  color: #fff;
-}
-.logo-mark {
-  margin-bottom: 24px;
-}
-.brand-content h1 {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-.brand-content p {
-  margin: 12px 0 0;
-  font-size: 15px;
-  opacity: 0.85;
-  line-height: 1.6;
-}
+.brand-copy { max-width: 420px; padding-bottom: 8vh; }
+.brand-copy p { margin: 0; color: var(--text-primary); font-size: clamp(30px, 4vw, 52px); font-weight: 720; line-height: 1.12; letter-spacing: -.045em; }
 .form-side {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 56px 48px;
-  background: #FFFDF8;
+  padding: clamp(36px, 8vw, 96px);
+  background: var(--surface);
 }
-.form-wrapper {
-  width: 100%;
-  max-width: 340px;
-}
-.form-wrapper h2 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.subtitle {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--text-tertiary);
-}
-.auth-tabs {
-  margin: 20px 0 8px;
-}
-.auth-tabs :deep(.el-tabs__header) {
-  margin-bottom: 8px;
-}
-.input-group {
-  margin-bottom: 16px;
-}
-.input-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-}
-.input-group :deep(.el-input__wrapper) {
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 1px var(--border) inset;
-}
-.input-group :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px var(--brand) inset;
-}
-.input-group :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px rgba(99,102,241,0.25) inset;
-}
-.submit-btn {
-  width: 100%;
-  margin-top: 8px;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  letter-spacing: 2px;
-  height: 44px;
-  background: var(--brand-gradient);
-  border: none;
-}
-.submit-btn:hover {
-  opacity: 0.92;
-}
+.form-wrapper { width: min(380px, 100%); }
+.form-wrapper h2 { margin: 0; color: var(--text-primary); font-size: 28px; line-height: 1.2; letter-spacing: -.035em; }
+.subtitle { margin: 9px 0 0; color: var(--text-tertiary); font-size: 13px; }
+.auth-tabs { margin: 26px 0 12px; }
+.auth-tabs :deep(.el-tabs__header) { margin-bottom: 14px; }
+.auth-tabs :deep(.el-tabs__item) { height: 40px; padding: 0 22px 0 0; font-weight: 620; }
+.input-group { margin-bottom: 17px; }
+.submit-btn { width: 100%; height: 44px; margin-top: 5px; }
 
 @media (max-width: 768px) {
-  .login-panel {
-    flex-direction: column;
-    width: 100%;
-    min-height: auto;
-  }
-  .brand-side {
-    flex: none;
-    padding: 32px 24px;
-  }
-  .brand-content h1 { font-size: 24px; }
-  .form-side { padding: 32px 24px; }
+  .login-page { padding: 0; }
+  .login-layout { grid-template-columns: 1fr; min-height: 100dvh; border: 0; border-radius: 0; }
+  .brand-side { min-height: 190px; padding: 26px 24px 30px; border-right: 0; border-bottom: 1px solid var(--border-light); }
+  .brand-copy { padding: 34px 0 0; }
+  .brand-copy p { max-width: 13ch; font-size: 27px; }
+  .form-side { align-items: flex-start; padding: 38px 24px 48px; }
 }
 </style>

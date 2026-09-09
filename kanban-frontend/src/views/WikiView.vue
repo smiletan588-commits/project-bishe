@@ -1,27 +1,15 @@
 <template>
-  <div class="wiki-page">
-    <!-- 顶栏 -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <el-button text @click="$router.push(`/project/${projectId}`)">
-          <el-icon><ArrowLeft /></el-icon>&nbsp;返回看板
-        </el-button>
-        <span class="sep">/</span>
-        <h3>{{ projectName }}</h3>
-        <span class="sep">/</span>
-        <span class="page-label">文档中心</span>
+  <AppShell :project-id="projectId" :project-name="projectName">
+    <div class="wiki-page">
+      <div class="wiki-heading">
+        <PageHeader eyebrow="文档中心" :title="projectName">
+          <template #actions><el-button class="docs-trigger" :icon="Collection" @click="docsOpen = true">文档列表</el-button><el-button v-if="currentDocId" type="primary" :loading="saving" @click="saveDoc">保存文档</el-button></template>
+        </PageHeader>
       </div>
-      <div class="topbar-right">
-        <el-button v-if="currentDocId" type="primary" size="small" :loading="saving" @click="saveDoc">
-          保存文档
-        </el-button>
-        <span class="avatar-dot">{{ userStore.userInfo?.username?.[0]?.toUpperCase() }}</span>
-      </div>
-    </header>
-
     <div class="wiki-body">
+      <button v-if="docsOpen" class="docs-backdrop" aria-label="关闭文档列表" @click="docsOpen = false" />
       <!-- 左侧：文档列表 -->
-      <aside class="wiki-sidebar">
+      <aside class="wiki-sidebar" :class="{ 'is-open': docsOpen }">
         <div class="sidebar-header">
           <span class="sidebar-title">文档列表</span>
           <el-button type="primary" size="small" :icon="Plus" @click="handleCreateDoc">
@@ -34,7 +22,7 @@
             :key="doc.id"
             class="doc-item"
             :class="{ active: currentDocId === doc.id }"
-            @click="selectDoc(doc)"
+            @click="selectDoc(doc); docsOpen = false"
           >
             <div class="doc-item-main">
               <el-icon class="doc-icon"><Document /></el-icon>
@@ -64,12 +52,7 @@
       <!-- 右侧：编辑器 + AI 面板 -->
       <div class="wiki-main" @mouseup="onEditorMouseUp">
         <div v-if="!currentDocId && !creatingNew" class="editor-placeholder">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <rect x="8" y="6" width="48" height="52" rx="4" stroke="#CBD5E1" stroke-width="2" />
-            <line x1="16" y1="16" x2="38" y2="16" stroke="#CBD5E1" stroke-width="2" />
-            <line x1="16" y1="24" x2="48" y2="24" stroke="#CBD5E1" stroke-width="2" />
-            <line x1="16" y1="32" x2="32" y2="32" stroke="#CBD5E1" stroke-width="2" />
-          </svg>
+          <el-icon class="placeholder-icon"><Document /></el-icon>
           <p>选择左侧文档开始编辑，或新建一篇文档</p>
         </div>
 
@@ -116,7 +99,7 @@
               <div class="ai-field">
                 <label>
                   待处理文本
-                  <span class="ai-hint">（在编辑器中划选文字可自动填入）</span>
+                  <span class="ai-hint">在编辑器中划选文字可自动填入</span>
                 </label>
                 <el-input
                   v-model="aiText"
@@ -158,7 +141,8 @@
         </transition>
       </div>
     </div>
-  </div>
+    </div>
+  </AppShell>
 </template>
 
 <script setup>
@@ -167,13 +151,13 @@ import { useRoute } from 'vue-router'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Plus, Delete, Document, MagicStick, Close } from '@element-plus/icons-vue'
-import { useUserStore } from '@/store/user'
+import { Plus, Delete, Document, MagicStick, Close, Collection } from '@element-plus/icons-vue'
 import { listWiki, getWiki, createWiki, updateWiki, deleteWiki, streamAiCopilot } from '@/api/wiki'
 import MarkdownIt from 'markdown-it'
+import AppShell from '@/components/AppShell.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const route = useRoute()
-const userStore = useUserStore()
 const projectId = computed(() => Number(route.params.id))
 
 const projectName = ref('文档中心')
@@ -184,6 +168,7 @@ const currentDocTitle = ref('')
 const docContent = ref('')
 const saving = ref(false)
 const creatingNew = ref(false)
+const docsOpen = ref(false)
 
 // md-editor-v3 工具栏配置
 const editorToolbars = [
@@ -388,7 +373,7 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped media="not all">
 .wiki-page {
   display: flex;
   flex-direction: column;
@@ -702,6 +687,16 @@ onMounted(() => {
   text-align: left;
 }
 .markdown-body :deep(th) { background: var(--bg-elevated); }
+</style>
+
+<style scoped>
+.wiki-page { display:flex; flex-direction:column; height:100dvh; min-width:0; overflow:hidden; background:var(--bg-base); }.wiki-heading { flex:0 0 auto; padding:24px 28px 0; background:var(--bg-base); }.wiki-heading :deep(.page-header-component) { align-items:center; margin-bottom:20px; }.wiki-heading :deep(h1) { font-size:23px; }
+.wiki-body { position:relative; display:flex; flex:1; min-height:0; margin:0 28px 28px; overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:var(--shadow-xs); }.wiki-sidebar { display:flex; flex:0 0 260px; flex-direction:column; border-right:1px solid var(--border); background:var(--surface); }.sidebar-header { display:flex; align-items:center; justify-content:space-between; padding:14px; border-bottom:1px solid var(--border-light); }.sidebar-title { color:var(--text-primary); font-size:13px; font-weight:700; }.doc-list { flex:1; overflow-y:auto; padding:8px; }.doc-item { display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; padding:10px; border-radius:8px; cursor:pointer; transition:background-color 160ms ease; }.doc-item:hover { background:var(--bg-hover); }.doc-item.active { color:var(--brand-deep); background:var(--brand-light); }.doc-item-main { display:flex; align-items:center; gap:9px; min-width:0; flex:1; }.doc-icon { flex:0 0 auto; color:var(--text-tertiary); }.doc-info { display:flex; min-width:0; flex-direction:column; }.doc-title { overflow:hidden; color:var(--text-primary); font-size:13px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }.doc-time { margin-top:2px; color:var(--text-tertiary); font-size:11px; }.empty-docs { padding:40px 14px; color:var(--text-tertiary); text-align:center; }.empty-docs p { margin:0 0 4px; font-size:13px; }.empty-docs span { font-size:12px; }
+.wiki-main { position:relative; display:flex; min-width:0; flex:1; overflow:hidden; }.editor-placeholder { display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:var(--text-tertiary); text-align:center; }.placeholder-icon { font-size:48px; color:var(--border-strong); }.editor-placeholder p { margin:0 18px; font-size:13px; }.editor-wrapper { display:flex; min-width:0; flex:1; flex-direction:column; }.editor-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 14px; border-bottom:1px solid var(--border-light); background:var(--surface); }.editor-doc-title { overflow:hidden; color:var(--text-primary); font-size:14px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.ai-panel { display:flex; flex:0 0 360px; flex-direction:column; overflow:hidden; border-left:1px solid var(--border); background:var(--surface); }.ai-panel-header { display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid var(--border-light); color:var(--brand-deep); font-size:13px; font-weight:700; }.ai-panel-header span { display:flex; align-items:center; gap:6px; }.ai-panel-body { display:flex; flex:1; flex-direction:column; gap:14px; overflow-y:auto; padding:15px; }.ai-field label { display:block; margin-bottom:6px; color:var(--text-secondary); font-size:12px; font-weight:600; }.ai-hint { display:block; margin-top:3px; color:var(--text-tertiary); font-size:11px; font-weight:400; }.ai-output-area { margin-top:4px; padding-top:14px; border-top:1px solid var(--border); }.ai-output-header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; flex-wrap:wrap; }.ai-output-header>span { font-size:13px; font-weight:600; }.ai-output-actions { display:flex; gap:6px; }.ai-output-content { max-height:360px; overflow-y:auto; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--surface-strong); font-size:13px; line-height:1.7; }.ai-slide-enter-active,.ai-slide-leave-active { transition:opacity 180ms ease,transform 180ms ease; }.ai-slide-enter-from,.ai-slide-leave-to { opacity:0; transform:translateX(12px); }
+.markdown-body :deep(h1),.markdown-body :deep(h2),.markdown-body :deep(h3) { margin:12px 0 8px; color:var(--text-primary); }.markdown-body :deep(p) { margin:6px 0; }.markdown-body :deep(code) { padding:2px 6px; border-radius:4px; background:var(--surface-strong); font-size:12px; font-family:var(--font-mono); }.markdown-body :deep(pre) { overflow-x:auto; padding:12px; border-radius:8px; color:#e7ecf4; background:#202938; }.markdown-body :deep(blockquote) { margin:8px 0; padding-left:12px; border-left:3px solid var(--brand); color:var(--text-secondary); }.markdown-body :deep(ul),.markdown-body :deep(ol) { padding-left:20px; }.markdown-body :deep(table) { width:100%; border-collapse:collapse; font-size:12px; }.markdown-body :deep(th),.markdown-body :deep(td) { padding:6px 10px; border:1px solid var(--border); text-align:left; }.markdown-body :deep(th) { background:var(--surface-strong); }.docs-trigger,.docs-backdrop { display:none; }
+@media (max-width:1100px) { .ai-panel { position:absolute; inset:0 0 0 auto; z-index:5; width:min(360px,72%); box-shadow:var(--shadow-lg); } }
+@media (max-width:767px) { .wiki-page { height:calc(100dvh - 60px); }.wiki-heading { padding:18px 16px 0; }.wiki-heading :deep(.page-header-component) { margin-bottom:16px; }.wiki-heading :deep(.page-header-copy p) { display:none; }.wiki-heading :deep(.page-header-actions) { width:auto; }.wiki-body { margin:0 16px 16px; }.docs-trigger { display:inline-flex; }.wiki-sidebar { position:absolute; inset:0 auto 0 0; z-index:12; width:min(280px,86%); transform:translateX(-104%); transition:transform 190ms ease; box-shadow:var(--shadow-lg); }.wiki-sidebar.is-open { transform:translateX(0); }.docs-backdrop { position:absolute; inset:0; z-index:11; display:block; border:0; background:rgba(21,31,50,.34); }.ai-panel { width:100%; }.editor-toolbar { padding:8px 10px; }.editor-toolbar .el-button { padding-inline:10px; } }
 </style>
 
 <!-- 覆盖 md-editor-v3 默认样式（unscoped） -->

@@ -1960,3 +1960,80 @@ ALTER TABLE sys_user ADD COLUMN identity varchar(50) DEFAULT NULL COMMENT '专�
 **修复：** `task.js` 将拆解接口超时提升为 120 秒；`TaskList.vue` 透传后端错误信息，便于定位实际异常。
 **验证：** 使用演示账号创建临时项目和任务，实际调用拆解接口耗时 14 秒，返回并持久化 5 条子任务；临时项目已删除；`npm run build` 通过。
 **状态：** ✅ 完成
+
+---
+
+## 任务完成：Docker 启动故障诊断 - 2026-09-07 14:39
+
+**摘要：** Docker Desktop、Linux daemon 和 Compose 均正常；启动失败由两个本机冲突造成：`start.bat` 检测到 Docker 数据盘仍在 C 盘后主动退出，且本机 `MySQL80` 已占用 Compose 要发布的 3306 端口。
+**验证：** `docker version`、`docker info`、`docker compose version` 和 `docker compose config --quiet` 均通过；确认 `docker_data.vhdx` 位于 C 盘且非重解析点，`MySQL80` 正在监听 3306。
+**影响文件：** `project_history.md`
+**后续步骤：** 将 Docker 磁盘镜像迁至其他盘或取消该脚本拦截；同时停止本机 MySQL 或把 Compose 宿主端口改为 3307（也可不发布数据库端口）。
+**状态：** ✅ 完成
+
+---
+
+## 任务完成：Docker 数据盘迁移到 D 盘 - 2026-09-07 14:46
+
+**摘要：** 停止 Docker Desktop 后，将 `C:\Users\Smile\AppData\Local\Docker\wsl` 中的两个 VHDX 数据盘迁移至 `D:\DockerData\wsl`，并在原位置建立目录联接以保持 Docker Desktop 路径兼容。
+**验证：** Docker Desktop 已恢复为 running，Docker client/server 29.7.2 可用，Compose 配置校验通过；目标 VHDX 时间戳在重启后继续更新，一键启动脚本的数据盘位置检查通过。
+**影响文件：** Docker Desktop WSL 数据目录、`project_history.md`
+**后续步骤：** Docker 数据盘问题已解决；项目完整启动仍需处理宿主机 `MySQL80` 与 Compose 的 3306 端口冲突。
+**状态：** ✅ 完成
+
+---
+
+## 任务完成：Docker MySQL 宿主端口调整 - 2026-09-07
+
+**摘要：** 将 Compose 的 MySQL 端口映射由 `3306:3306` 调整为 `3307:3306`，避开宿主机 `MySQL80` 对 3306 的占用。
+**关键决策：** 仅修改宿主端口；容器内部仍使用 3306，后端通过 Docker 网络访问 `mysql:3306`，无需改动应用配置。
+**影响文件：** `docker-compose.yml`、`project_history.md`
+**状态：** ✅ 完成
+
+---
+
+## 任务完成：启动脚本虚拟化状态误判修复 - 2026-09-07
+
+**摘要：** 修复 Docker 未运行时 `start.bat` 仅依据 `VirtualizationFirmwareEnabled` 判断 BIOS 虚拟化、从而在 Hyper-V/WSL2 已运行的机器上产生误报的问题。
+**关键决策：** 同时接受 `Win32_ComputerSystem.HypervisorPresent=true` 或 CPU 固件虚拟化标志为真；并将 BIOS 提示改为 Intel VT-x / AMD SVM 通用说明。
+**验证：** 当前机器 `HypervisorPresent=True`、新判断结果为 True；Docker Desktop 随后成功启动并恢复 running。
+**影响文件：** `start.bat`、`project_history.md`
+**状态：** ✅ 完成
+
+---
+
+### 2026-09-07 - 全站前端视觉重构：设计系统与公共组件
+
+**操作：** 建立冷灰浅色主题与钴蓝品牌色，新增统一品牌标志、响应式侧栏壳层、页面标题、状态、空状态和加载骨架组件。
+**影响文件：** `kanban-frontend/src/assets/theme.css`、`kanban-frontend/src/components/*`
+**原因：** 消除页面各自维护顶栏、颜色和圆角造成的视觉割裂，为八个页面提供一致的改造基础。
+**验证：** `npm ci` 完成，`npm run build` 通过。
+**状态：** ✅ 完成
+
+---
+
+### 2026-09-07 - SmartPM 全站前端视觉重构
+
+**操作：** 启动 Vue 3 + Element Plus 全站视觉重构，先建立冷灰浅色设计令牌、统一应用壳层和新版 SmartPM 标志。
+**影响文件：** `kanban-frontend/src/assets/theme.css`、`kanban-frontend/src/components/*`、后续全部前端视图。
+**原因：** 现有页面视觉语言分裂、重复顶栏与硬编码颜色较多，并在 390px 视口存在明显横向溢出。
+**状态：** ✅ 完成
+
+---
+
+### 2026-09-07 - 全站前端视觉重构完成与响应式验收
+
+**操作：** 完成登录、项目列表、任务看板、数据分析、Wiki、项目管理、系统管理和回收站八个路由的视觉迁移；统一接入响应式应用侧栏、页面标题、状态组件和钴蓝浅色设计系统。看板手机端改为状态分段切换，Wiki 增加文档抽屉，管理页甘特图限制为内部滚动，管理员与回收站在手机端改为记录卡片。
+**设计约束：** 保留现有路由、接口、Pinia、权限、拖拽、编辑器、AI 能力与中文业务文案；未引入新的 UI 或动画库。
+**验证：** `npm ci` 和 `npm run build` 通过；Playwright 使用 1440、1024、768、390 四种宽度检查全部八个路由，共 32 组页面均无根节点水平溢出和运行时错误；侧栏抽屉、平板 72px 窄侧栏、手机看板状态切换、Wiki 文档抽屉、新建项目与新建任务弹窗均通过交互检查。新版前端已重建并部署至 Docker Nginx 的 `http://localhost:3000`。
+**影响文件：** `kanban-frontend/src/assets/theme.css`、`kanban-frontend/src/components/*`、`kanban-frontend/src/views/*`、`kanban-frontend/scripts/visual-regression.cjs`、`project_history.md`。
+**状态：** ✅ 完成
+
+---
+
+### 2026-09-09 - GitHub 上传准备
+
+**操作：** 审核版本库边界与敏感文件忽略规则，确认 `.env`、依赖、构建产物、IDE 配置和项目报告不会进入远程仓库；准备初始化 `main` 分支并提交当前稳定版本。
+**影响文件：** `.gitignore`、`project_history.md`。
+**原因：** 当前目录尚未初始化 Git，且本机未安装 GitHub CLI，需要先形成可安全推送的本地提交，再绑定用户指定的 GitHub 仓库。
+**状态：** ⏳ 进行中

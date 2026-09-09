@@ -1,106 +1,49 @@
 <template>
+  <AppShell>
   <div class="dashboard">
-    <header class="topbar">
-      <div class="topbar-left">
-        <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
-          <rect width="40" height="40" rx="10" :fill="'url(#g)'"/>
-          <rect x="8" y="10" width="10" height="8" rx="2" fill="white" opacity="0.9"/>
-          <rect x="22" y="10" width="10" height="8" rx="2" fill="white" opacity="0.7"/>
-          <rect x="8" y="22" width="10" height="8" rx="2" fill="white" opacity="0.6"/>
-          <rect x="22" y="22" width="10" height="8" rx="2" fill="white" opacity="0.8"/>
-          <defs>
-            <linearGradient id="g" x1="0" y1="0" x2="40" y2="40">
-              <stop stop-color="#E2A43A"/><stop offset="1" stop-color="#A95D12"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <span class="brand">SmartPM</span>
-      </div>
-      <div class="topbar-right">
-        <button class="analytics-btn recycle-btn" @click="$router.push('/recycle-bin')">回收站</button>
-        <button v-if="userStore.systemRole === 'ADMIN'" class="analytics-btn admin-btn" @click="$router.push('/admin/users')">系统管理</button>
-        <button class="analytics-btn" @click="$router.push('/analytics')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/>
-          </svg>
-          数据大屏
-        </button>
-        <span class="avatar-dot">{{ userStore.userInfo?.username?.[0]?.toUpperCase() }}</span>
-        <span class="username">{{ userStore.userInfo?.username }}</span>
-        <button class="logout-btn" @click="handleLogout">退出</button>
-      </div>
-    </header>
-
     <main class="main">
-      <div class="page-header">
-        <div>
-          <h2>我的项目</h2>
-          <p class="page-desc">{{ projects.length }} 个项目</p>
-        </div>
-        <div class="page-actions">
+      <PageHeader title="我的项目" :description="`${projects.length} 个项目`">
+        <template #actions>
           <el-button size="large" @click="joinDialogVisible = true">加入项目</el-button>
           <el-button type="primary" size="large" @click="dialogVisible = true">+ 新建项目</el-button>
-        </div>
-      </div>
+        </template>
+      </PageHeader>
 
-      <div v-loading="loading" class="card-grid">
-        <div
-          v-for="(item, i) in projects"
+      <LoadingSkeleton v-if="loading" :rows="4" />
+      <section v-else class="project-list" aria-label="项目列表">
+        <article
+          v-for="item in projects"
           :key="item.id"
           class="project-card"
           @click="$router.push(`/project/${item.id}`)"
         >
-          <div class="card-accent" :style="{ background: cardColors[i % cardColors.length] }" />
-          <div class="card-body">
-            <div class="card-header">
+          <div class="project-main">
+            <div class="project-glyph" aria-hidden="true">{{ item.name?.slice(0, 1) }}</div>
+            <div class="project-copy">
               <h4>{{ item.name }}</h4>
-              <el-dropdown trigger="click" @click.stop>
-                <span class="card-more-btn" @click.stop>
-                  <el-icon><MoreFilled /></el-icon>
-                </span>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click.stop="openMembersDialog(item)">
-                      <el-icon><UserFilled /></el-icon> 团队成员
-                    </el-dropdown-item>
-                    <el-dropdown-item @click.stop="goToWiki(item)">
-                      <el-icon><Document /></el-icon> 文档中心
-                    </el-dropdown-item>
-                    <el-dropdown-item @click.stop="openEditDialog(item)" divided>
-                      <el-icon><Edit /></el-icon> 修改项目信息
-                    </el-dropdown-item>
-                    <el-dropdown-item @click.stop="handleDelete(item)" divided>
-                      <el-icon><Delete /></el-icon> 删除项目
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-            <p class="card-desc">{{ item.description || '暂无描述' }}</p>
-            <div class="card-meta">
-              <span class="card-date">{{ item.createdAt?.slice(0, 10) }}</span>
-              <span class="card-arrow">&rarr;</span>
+              <p>{{ item.description || '暂无描述' }}</p>
             </div>
           </div>
-        </div>
+          <span class="project-date">{{ item.createdAt?.slice(0, 10) }}</span>
+          <el-dropdown trigger="click" @click.stop>
+            <button class="card-more-btn" aria-label="项目操作" @click.stop><el-icon><MoreFilled /></el-icon></button>
+            <template #dropdown><el-dropdown-menu>
+              <el-dropdown-item @click.stop="openMembersDialog(item)"><el-icon><UserFilled /></el-icon> 团队成员</el-dropdown-item>
+              <el-dropdown-item @click.stop="goToWiki(item)"><el-icon><Document /></el-icon> 文档中心</el-dropdown-item>
+              <el-dropdown-item @click.stop="openEditDialog(item)" divided><el-icon><Edit /></el-icon> 修改项目信息</el-dropdown-item>
+              <el-dropdown-item @click.stop="handleDelete(item)" divided><el-icon><Delete /></el-icon> 删除项目</el-dropdown-item>
+            </el-dropdown-menu></template>
+          </el-dropdown>
+          <span class="project-arrow" aria-hidden="true">→</span>
+        </article>
 
-        <div v-if="!loading && projects.length === 0" class="empty-state">
-          <div class="empty-icon">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <rect x="6" y="8" width="36" height="28" rx="4" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="4 3"/>
-              <line x1="6" y1="18" x2="42" y2="18" stroke="#94A3B8" stroke-width="1.5"/>
-              <circle cx="12" cy="13" r="1.5" fill="#94A3B8"/>
-              <circle cx="17" cy="13" r="1.5" fill="#94A3B8"/>
-            </svg>
-          </div>
-          <h3>还没有项目</h3>
-          <p>输入团队提供的邀请码，加入后即可参与协作</p>
-          <div class="empty-actions">
+        <StatePanel v-if="projects.length === 0" title="还没有项目" description="输入团队提供的邀请码，加入后即可参与协作">
+          <template #actions>
             <el-button @click="joinDialogVisible = true">输入邀请码加入</el-button>
             <el-button type="primary" @click="dialogVisible = true">创建项目</el-button>
-          </div>
-        </div>
-      </div>
+          </template>
+        </StatePanel>
+      </section>
     </main>
 
     <el-dialog v-model="dialogVisible" title="新建项目" width="440px" :close-on-click-modal="false">
@@ -220,17 +163,6 @@
     >
       <template #header>
         <div class="identity-dialog-header">
-          <div class="identity-icon-wrapper">
-            <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="16" r="8" stroke="url(#idGrad)" stroke-width="2.5"/>
-              <path d="M10 40c0-7.732 6.268-14 14-14s14 6.268 14 14" stroke="url(#idGrad)" stroke-width="2.5" stroke-linecap="round"/>
-              <defs>
-                <linearGradient id="idGrad" x1="0" y1="0" x2="48" y2="48">
-                  <stop stop-color="#E2A43A"/><stop offset="1" stop-color="#A95D12"/>
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
           <h3>请选择您的专业身份</h3>
           <p class="identity-subtitle">这将帮助团队了解您的专业技能方向</p>
         </div>
@@ -243,13 +175,14 @@
           :class="{ selected: selecting === item.value }"
           @click="handleSelectIdentity(item.value)"
         >
-          <span class="identity-emoji">{{ item.emoji }}</span>
+          <span class="identity-short">{{ item.short }}</span>
           <span class="identity-label">{{ item.label }}</span>
           <span class="identity-code">{{ item.value }}</span>
         </div>
       </div>
     </el-dialog>
   </div>
+  </AppShell>
 </template>
 
 <script setup>
@@ -258,6 +191,10 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MoreFilled, Edit, Delete, Document, UserFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
+import AppShell from '@/components/AppShell.vue'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatePanel from '@/components/StatePanel.vue'
 import { listProjects, createProject, updateProject, deleteProject, listProjectMembers, inviteProjectMember, updateProjectMember, removeProjectMember, transferProjectOwner, getProjectInviteCode, joinProjectByInviteCode } from '@/api/project'
 
 const router = useRouter()
@@ -288,11 +225,11 @@ const showIdentityDialog = ref(false)
 const selecting = ref(null)
 
 const identityOptions = [
-  { value: 'PROJECT_MANAGER', label: '项目经理', emoji: '📋' },
-  { value: 'FRONTEND_DEV',   label: '前端工程师', emoji: '💻' },
-  { value: 'BACKEND_DEV',    label: '后端工程师', emoji: '☕' },
-  { value: 'QA_TESTER',      label: '测试工程师', emoji: '🧪' },
-  { value: 'UI_DESIGNER',    label: 'UI设计师',   emoji: '🎨' }
+  { value: 'PROJECT_MANAGER', label: '项目经理', short: 'PM' },
+  { value: 'FRONTEND_DEV',   label: '前端工程师', short: 'FE' },
+  { value: 'BACKEND_DEV',    label: '后端工程师', short: 'BE' },
+  { value: 'QA_TESTER',      label: '测试工程师', short: 'QA' },
+  { value: 'UI_DESIGNER',    label: 'UI设计师',   short: 'UI' }
 ]
 
 async function handleSelectIdentity(identity) {
@@ -308,8 +245,6 @@ async function handleSelectIdentity(identity) {
     selecting.value = null
   }
 }
-
-const cardColors = ['#D58A22', '#B96A18', '#8D6A3B', '#6F7A57', '#B46F4A', '#8B5E3C']
 
 async function fetchProjects() {
   console.log('[Dashboard] 开始加载项目列表...')
@@ -494,11 +429,6 @@ async function handleDelete(project) {
   }
 }
 
-function handleLogout() {
-  userStore.logout()
-  router.push('/login')
-}
-
 onMounted(async () => {
   await fetchProjects()
   if (userStore.needsIdentityPrompt && projects.value.length > 0) {
@@ -507,7 +437,7 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style scoped media="not all">
 .dashboard { min-height: 100vh; }
 .topbar {
   display: flex; justify-content: space-between; align-items: center;
@@ -695,5 +625,60 @@ onMounted(async () => {
 @media (max-width: 680px) {
   .member-invite-form { flex-wrap: wrap; }
   .member-invite-form .el-input { flex-basis: 100%; }
+}
+</style>
+
+<style scoped>
+.dashboard { min-height: 100dvh; }
+.main { width: min(1180px, 100%); margin: 0 auto; padding: 46px clamp(20px, 4vw, 54px) 72px; }
+.project-list { overflow: hidden; border: 1px solid var(--border-light); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-xs); }
+.project-card { display: grid; grid-template-columns: minmax(0, 1fr) auto 36px 24px; align-items: center; gap: 18px; min-height: 92px; padding: 17px 20px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); background: var(--surface); cursor: pointer; transition: background-color 160ms ease; }
+.project-card:last-of-type { border-bottom: 0; }
+.project-card:hover { background: var(--brand-soft); }
+.project-main { display: flex; align-items: center; min-width: 0; gap: 15px; }
+.project-glyph { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; border-radius: 11px; color: var(--brand-deep); background: var(--brand-light); font-size: 15px; font-weight: 720; }
+.project-copy { min-width: 0; }
+.project-copy h4 { margin: 0; overflow: hidden; color: var(--text-primary); font-size: 15px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
+.project-copy p { margin: 5px 0 0; overflow: hidden; color: var(--text-tertiary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.project-date { color: var(--text-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.card-more-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 8px; color: var(--text-tertiary); background: transparent; cursor: pointer; }
+.card-more-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.project-arrow { color: var(--brand); font-size: 18px; transition: transform 160ms ease; }
+.project-card:hover .project-arrow { transform: translateX(3px); }
+.dialog-form { display: grid; gap: 17px; }
+.member-invite { padding: 16px; margin-bottom: 16px; border: 1px solid var(--border-light); border-radius: var(--radius); background: var(--surface-subtle); }
+.member-invite-title { margin-bottom: 10px; color: var(--text-primary); font-size: 13px; font-weight: 680; }
+.member-invite-form,.invite-code-row { display: flex; align-items: center; gap: 9px; }
+.member-invite-form .el-input,.invite-code-row code { flex: 1; }
+.invite-code-row code { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--brand-deep); background: var(--brand-soft); font-family: var(--font-mono); font-size: 17px; font-weight: 700; letter-spacing: .12em; text-align: center; }
+.form-hint { margin: 8px 0 0; }
+.member-person { display: flex; align-items: center; gap: 8px; font-weight: 620; }
+.member-person small { color: var(--text-tertiary); font-size: 11px; font-weight: 400; }
+.member-avatar { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: #f8faff; background: var(--brand); font-size: 11px; }
+.identity-dialog-header { padding: 4px 0 8px; text-align: left; }
+.identity-icon-wrapper { display: none; }
+.identity-dialog-header h3 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+.identity-subtitle { margin: 6px 0 0; color: var(--text-tertiary); font-size: 13px; }
+.identity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.identity-card { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-height: 112px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-primary); background: var(--surface); cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, transform 120ms ease; }
+.identity-card:hover,.identity-card.selected { border-color: var(--brand); background: var(--brand-soft); }
+.identity-card:active { transform: translateY(1px); }
+.identity-short { color: var(--brand); font-family: var(--font-mono); font-size: 19px; font-weight: 760; }
+.identity-label { font-size: 13px; font-weight: 650; }
+.identity-code { color: var(--text-tertiary); font-family: var(--font-mono); font-size: 9px; word-break: break-all; }
+@media (max-width: 720px) {
+  .main { padding: 28px 16px 52px; }
+  .project-list { overflow: visible; border: 0; background: transparent; box-shadow: none; }
+  .project-card { grid-template-columns: minmax(0, 1fr) 34px; gap: 12px; margin-bottom: 12px; padding: 16px; border: 1px solid var(--border-light); border-radius: var(--radius); background: var(--surface); }
+  .project-date,.project-arrow { display: none; }
+  .project-glyph { width: 38px; height: 38px; }
+  .member-invite-form { flex-wrap: wrap; }
+  .member-invite-form .el-input { flex-basis: 100%; }
+  .identity-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 420px) {
+  .project-main { align-items: flex-start; }
+  .project-copy p { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .identity-grid { grid-template-columns: 1fr 1fr; }
 }
 </style>

@@ -1,34 +1,20 @@
 <template>
+  <AppShell :project-id="projectId" :project-name="projectName">
   <div class="board">
-    <header class="topbar">
-      <div class="topbar-left">
-        <el-button text @click="$router.push('/dashboard')">
-          <el-icon><ArrowLeft /></el-icon>&nbsp;返回
-        </el-button>
-        <span class="sep">/</span>
-        <h3>{{ projectName }}</h3>
-      </div>
-      <div class="topbar-right">
-        <el-button size="small" @click="$router.push({ path: `/project/${projectId}/wiki`, query: { projectName } })">
-          <el-icon><Document /></el-icon>&nbsp;文档中心
-        </el-button>
-        <el-button size="small" @click="$router.push(`/project/${projectId}/manage`)">项目管理</el-button>
-        <el-button class="ai-init-btn" size="small" :loading="planLoading" :disabled="hasTasks" @click="generateProjectPlan">
-          ✨ AI 完整计划
-        </el-button>
-        <el-button class="ai-init-btn" size="small" :loading="initTasksLoading"
-          :disabled="hasTasks" @click="handleInitTasks">
-          ✨ AI 生成任务
-        </el-button>
-        <el-button type="primary" size="small" :loading="summaryLoading" @click="openSummary">
-          生成项目总结
-        </el-button>
-        <span class="avatar-dot">{{ userStore.userInfo?.username?.[0]?.toUpperCase() }}</span>
-        <span class="username">{{ userStore.userInfo?.username }}</span>
-      </div>
-    </header>
-
     <main class="board-main">
+      <PageHeader :title="projectName || '项目看板'">
+        <template #actions>
+          <el-button @click="openCreate('TODO')">新建任务</el-button>
+          <el-dropdown trigger="click">
+            <el-button type="primary"><el-icon><MagicStick /></el-icon> AI 助手</el-button>
+            <template #dropdown><el-dropdown-menu>
+              <el-dropdown-item :disabled="hasTasks || planLoading" @click="generateProjectPlan">AI 完整计划</el-dropdown-item>
+              <el-dropdown-item :disabled="hasTasks || initTasksLoading" @click="handleInitTasks">AI 生成任务</el-dropdown-item>
+              <el-dropdown-item divided :disabled="summaryLoading" @click="openSummary">生成项目总结</el-dropdown-item>
+            </el-dropdown-menu></template>
+          </el-dropdown>
+        </template>
+      </PageHeader>
       <div class="board-filters">
         <el-select v-model="filters.assigneeId" clearable placeholder="全部负责人" size="small">
           <el-option v-for="member in projectMembers" :key="member.userId" :label="member.nickname || member.username" :value="member.userId" />
@@ -41,13 +27,17 @@
         </el-select>
         <el-button text size="small" @click="clearFilters">清除筛选</el-button>
       </div>
+      <div class="mobile-status-tabs" role="tablist" aria-label="任务状态">
+        <button v-for="item in mobileStatuses" :key="item.value" :class="{ active: mobileStatus === item.value }" @click="mobileStatus = item.value">
+          {{ item.label }} <span>{{ item.count }}</span>
+        </button>
+      </div>
       <div class="columns">
 
         <!-- TODO 列 -->
-        <div class="column">
+        <div class="column" :class="{ 'mobile-active': mobileStatus === 'TODO' }">
           <div class="column-header todo">
             <div class="col-title">
-              <span class="col-dot" style="background:#F59E0B" />
               <span>待办</span>
               <span class="col-count">{{ todoList.length }}</span>
             </div>
@@ -104,10 +94,9 @@
         </div>
 
         <!-- IN_PROGRESS 列 -->
-        <div class="column">
+        <div class="column" :class="{ 'mobile-active': mobileStatus === 'IN_PROGRESS' }">
           <div class="column-header progress">
             <div class="col-title">
-              <span class="col-dot" style="background:#3B82F6" />
               <span>进行中</span>
               <span class="col-count">{{ inProgressList.length }}</span>
             </div>
@@ -164,10 +153,9 @@
         </div>
 
         <!-- DONE 列 -->
-        <div class="column">
+        <div class="column" :class="{ 'mobile-active': mobileStatus === 'DONE' }">
           <div class="column-header done">
             <div class="col-title">
-              <span class="col-dot" style="background:#10B981" />
               <span>已完成</span>
               <span class="col-count">{{ doneList.length }}</span>
             </div>
@@ -326,7 +314,7 @@
           </div>
           <p class="attachment-tip">支持图片、PDF、ZIP / RAR / 7Z，单个文件不超过 20MB。</p>
           <div v-for="attachment in attachments" :key="attachment.id" class="attachment-row">
-            <span>📎 {{ attachment.originalName }}</span><small>{{ formatFileSize(attachment.size) }}</small>
+          <span><el-icon><Paperclip /></el-icon> {{ attachment.originalName }}</span><small>{{ formatFileSize(attachment.size) }}</small>
             <div><el-button text size="small" @click="downloadAttachment(attachment)">下载</el-button><el-button text size="small" @click="showDownloadLogs(attachment)">记录</el-button><el-button text type="danger" size="small" @click="removeAttachment(attachment)">删除</el-button></div>
           </div>
           <p v-if="!attachments.length" class="attachment-tip">暂无附件</p>
@@ -411,7 +399,6 @@
       :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false">
       <template #header>
         <div class="project-role-header">
-          <span class="project-role-icon">👋</span>
           <h3>欢迎加入 {{ projectName }}</h3>
           <p>请选择你在这个项目中的岗位，方便团队分配任务。</p>
         </div>
@@ -419,7 +406,7 @@
       <div class="project-role-grid">
         <button v-for="role in projectRoleOptions" :key="role.value" class="project-role-card"
           :disabled="savingProjectRole" @click="selectProjectRole(role.value)">
-          <span>{{ role.emoji }}</span><strong>{{ role.label }}</strong>
+          <span>{{ role.short }}</span><strong>{{ role.label }}</strong>
         </button>
       </div>
     </el-dialog>
@@ -461,13 +448,14 @@
       <template #footer><el-button @click="optimizationVisible = false">保留原任务</el-button><el-button type="primary" @click="applyOptimization">应用优化内容</el-button></template>
     </el-dialog>
   </div>
+  </AppShell>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Loading, Calendar, Document, VideoPlay, CircleCheck } from '@element-plus/icons-vue'
+import { Delete, Loading, Calendar, VideoPlay, CircleCheck, MagicStick, Paperclip } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import MarkdownIt from 'markdown-it'
 import { useUserStore } from '@/store/user'
@@ -475,6 +463,8 @@ import { listProjects, listProjectMembers, updateMyProjectIdentity, generateAiPr
 import { listTasks, createTask, updateTask, deleteTask, decomposeTask, listSubtasks, toggleSubtask, initProjectTasks, listTaskAttachments, uploadTaskAttachment, deleteTaskAttachment, listAttachmentDownloadLogs, optimizeTaskWithAi } from '@/api/task'
 import { streamProjectSummary } from '@/api/summary'
 import request from '@/utils/request'
+import AppShell from '@/components/AppShell.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const md = new MarkdownIt({ breaks: true, linkify: true })
 
@@ -489,6 +479,7 @@ const inProgressList = ref([])
 const doneList = ref([])
 const allTasks = ref([])
 const filters = reactive({ assigneeId: null, role: '', tag: '' })
+const mobileStatus = ref('TODO')
 
 // 项目成员：userId -> { nickname, identity }
 const memberMap = ref({})
@@ -497,19 +488,25 @@ const projectRoleDialogVisible = ref(false)
 const savingProjectRole = ref(false)
 
 const projectRoleOptions = [
-  { value: 'PROJECT_MANAGER', label: '项目经理', emoji: '📋' },
-  { value: 'FRONTEND_DEV', label: '前端工程师', emoji: '💻' },
-  { value: 'BACKEND_DEV', label: '后端工程师', emoji: '☕' },
-  { value: 'QA_TESTER', label: '测试工程师', emoji: '🧪' },
-  { value: 'UI_DESIGNER', label: 'UI 设计师', emoji: '🎨' }
+  { value: 'PROJECT_MANAGER', label: '项目经理', short: 'PM' },
+  { value: 'FRONTEND_DEV', label: '前端工程师', short: 'FE' },
+  { value: 'BACKEND_DEV', label: '后端工程师', short: 'BE' },
+  { value: 'QA_TESTER', label: '测试工程师', short: 'QA' },
+  { value: 'UI_DESIGNER', label: 'UI 设计师', short: 'UI' }
 ]
 
+const mobileStatuses = computed(() => [
+  { value: 'TODO', label: '待办', count: todoList.value.length },
+  { value: 'IN_PROGRESS', label: '进行中', count: inProgressList.value.length },
+  { value: 'DONE', label: '已完成', count: doneList.value.length }
+])
+
 const roleConfig = {
-  PROJECT_MANAGER: { label: '项目经理', color: '#D58A22' },
-  FRONTEND_DEV:   { label: '前端',     color: '#68839A' },
-  BACKEND_DEV:    { label: '后端',     color: '#6F7A57' },
-  QA_TESTER:      { label: '测试',     color: '#B46F4A' },
-  UI_DESIGNER:    { label: 'UI设计',   color: '#EC4899' }
+  PROJECT_MANAGER: { label: '项目经理', color: '#315EE7' },
+  FRONTEND_DEV:   { label: '前端',     color: '#52627A' },
+  BACKEND_DEV:    { label: '后端',     color: '#52627A' },
+  QA_TESTER:      { label: '测试',     color: '#52627A' },
+  UI_DESIGNER:    { label: 'UI设计',   color: '#52627A' }
 }
 
 const tagOptions = [
@@ -1317,4 +1314,79 @@ onUnmounted(() => {
 .markdown-body :deep(strong) { font-weight: 600; color: var(--text-primary); }
 .markdown-body :deep(hr) { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
 
+</style>
+
+<style scoped>
+.board { min-height: 100dvh; display: block; }
+.board-main { width: min(1380px, 100%); margin: 0 auto; padding: 42px clamp(20px, 3.6vw, 52px) 60px; overflow: hidden; }
+.board-filters { display: flex; align-items: center; gap: 10px; max-width: none; margin: 0 0 18px; padding: 12px; border: 1px solid var(--border-light); border-radius: var(--radius); background: var(--surface); }
+.board-filters :deep(.el-select) { width: 156px; }
+.mobile-status-tabs { display: none; }
+.columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; min-width: 0; max-width: none; height: auto; margin: 0; align-items: start; }
+.column { min-width: 0; max-width: none; min-height: 420px; border: 1px solid var(--border-light); border-radius: var(--radius); background: var(--surface-subtle); }
+.column-header { padding: 14px 15px; border-radius: var(--radius) var(--radius) 0 0; background: var(--surface); }
+.column-header.todo { border-bottom: 2px solid #e7b66e; }
+.column-header.progress { border-bottom: 2px solid #7ca9de; }
+.column-header.done { border-bottom: 2px solid #75b99a; }
+.col-title { color: var(--text-primary); font-size: 13px; font-weight: 680; }
+.col-count { color: var(--text-secondary); background: var(--surface-strong); }
+.column-body { padding: 10px; gap: 9px; overflow: visible; }
+.column-empty { border-color: var(--border); background: var(--surface); }
+.task-card { gap: 9px; padding: 14px; border: 1px solid var(--border-light); border-radius: 10px; color: var(--text-primary); background: var(--surface); box-shadow: var(--shadow-xs); }
+.task-card:hover { border-color: #aab9eb; box-shadow: var(--shadow-sm); }
+.task-title { color: var(--text-primary); font-weight: 650; }
+.task-desc { color: var(--text-tertiary); }
+.card-grip { opacity: .36; }
+.grip-dot { background: var(--text-tertiary); }
+.task-footer { border-top-color: var(--border-light); }
+.assignee-name { color: var(--text-secondary); }
+.priority-chip,.task-label,.blocked-chip { border-radius: 999px; }
+.priority-HIGH { color: var(--danger); background: var(--danger-bg); }
+.priority-MEDIUM { color: var(--todo); background: var(--todo-bg); }
+.priority-LOW { color: var(--progress); background: var(--progress-bg); }
+.task-label { color: var(--text-secondary); background: var(--surface-strong); }
+.blocked-chip { color: var(--danger); background: var(--danger-bg); }
+.role-tag { border-radius: 999px; }
+.subtask-minibar-fill,.progress-fill { background: var(--brand); }
+.detail-desc,.acceptance-section,.optimization-preview p { background: var(--surface-subtle); }
+.blocked-notice { color: var(--danger); background: var(--danger-bg); }
+.plan-stage-list span { color: var(--brand-deep); background: var(--brand-light); }
+.plan-task,.plan-risk { border-color: var(--border-light); background: var(--surface); }
+.optimization-ok { color: var(--done) !important; background: var(--done-bg) !important; }
+.project-role-header { text-align: left; }
+.project-role-header h3 { margin-top: 0; }
+.project-role-card { align-items: flex-start; padding: 16px; border-color: var(--border); border-radius: var(--radius); background: var(--surface); }
+.project-role-card:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-soft); box-shadow: none; }
+.project-role-card span { color: var(--brand); font-family: var(--font-mono); font-size: 18px; font-weight: 750; }
+.attachment-row > span { display: inline-flex; align-items: center; gap: 6px; }
+.mobile-status-tabs button:active,.task-card:active,.project-role-card:active { transform: translateY(1px); }
+@media (max-width: 980px) {
+  .board-main { padding-inline: 24px; }
+  .columns { gap: 12px; }
+  .task-card { padding: 12px; }
+}
+@media (max-width: 767px) {
+  .board-main { padding: 26px 16px 48px; overflow: hidden; }
+  .board-filters { display: grid; grid-template-columns: 1fr 1fr; padding: 10px; }
+  .board-filters :deep(.el-select) { width: 100%; }
+  .board-filters :deep(.el-button) { margin-left: 0; justify-self: start; }
+  .mobile-status-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0 0 14px; padding: 4px; border: 1px solid var(--border-light); border-radius: 10px; background: var(--surface); }
+  .mobile-status-tabs button { min-width: 0; min-height: 38px; border: 0; border-radius: 7px; color: var(--text-tertiary); background: transparent; font-size: 12px; font-weight: 650; cursor: pointer; }
+  .mobile-status-tabs button.active { color: var(--brand-deep); background: var(--brand-light); }
+  .mobile-status-tabs span { margin-left: 3px; font-size: 10px; }
+  .columns { display: block; min-width: 0; }
+  .column { display: none; width: 100%; min-width: 0; min-height: 360px; max-width: none; }
+  .column.mobile-active { display: flex; }
+  .detail-header { align-items: flex-start; flex-wrap: wrap; }
+  .detail-title { flex: 1; min-width: 160px; }
+  .detail-actions { width: 100%; margin-left: 0; flex-wrap: wrap; }
+  .input-row { display: grid; grid-template-columns: 1fr; gap: 0; }
+  .project-role-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .attachment-row { align-items: flex-start; flex-wrap: wrap; }
+  .attachment-row > span { flex-basis: calc(100% - 80px); }
+}
+@media (max-width: 420px) {
+  .board-filters { grid-template-columns: 1fr; }
+  .project-role-grid { grid-template-columns: 1fr 1fr; }
+}
 </style>

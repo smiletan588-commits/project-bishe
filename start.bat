@@ -58,14 +58,15 @@ if errorlevel 1 (
 
 docker info >nul 2>&1
 if errorlevel 1 (
-  powershell -NoProfile -Command "$cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue; if (-not $cpu) { exit 2 }; if ($cpu.VirtualizationFirmwareEnabled -contains $true) { exit 0 }; exit 1" >nul 2>&1
+  powershell -NoProfile -Command "$cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue; $system = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue; if (-not $cpu -and -not $system) { exit 2 }; if (($system.HypervisorPresent -eq $true) -or ($cpu.VirtualizationFirmwareEnabled -contains $true)) { exit 0 }; exit 1" >nul 2>&1
   if errorlevel 2 (
     echo [INFO] Windows could not determine the firmware virtualization status.
   ) else if errorlevel 1 (
     echo [ERROR] CPU virtualization is disabled in BIOS/UEFI.
     echo.
-    echo On an ASUS AMD computer, restart into BIOS and enable:
-    echo   Advanced Mode ^(F7^) ^> Advanced ^> CPU Configuration ^> SVM Mode
+    echo Restart into BIOS/UEFI and enable CPU virtualization:
+    echo   Intel: Intel Virtualization Technology ^(VT-x^)
+    echo   AMD:   SVM Mode
     echo Then press F10 to save, reboot Windows, and run this file again.
     call :show_failure
     exit /b 1

@@ -1,67 +1,129 @@
-/* === Design Tokens — SmartPM Kanban === */
 :root {
-  /* Background */
-  --bg-base: #F3F0E9;
-  --bg-surface: #FFFDF8;
-  --bg-elevated: #EAE5DC;
-  --bg-hover: #E2DBD0;
-
-  /* Brand */
-  --brand: #D58A22;
-  --brand-deep: #A95D12;
-  --brand-light: #F7E6C7;
-  --brand-gradient: linear-gradient(135deg, #E2A43A 0%, #B96A18 100%);
-
-  /* Status colors */
-  --todo: #F59E0B;
-  --todo-bg: #FFFBEB;
-  --progress: #3B82F6;
-  --progress-bg: #EFF6FF;
-  --done: #10B981;
-  --done-bg: #ECFDF5;
-
-  /* Text */
-  --text-primary: #24211D;
-  --text-secondary: #665F56;
-  --text-tertiary: #988F84;
-
-  /* Border & Shadow */
-  --border: #D8D0C4;
-  --shadow-xs: 0 1px 2px rgba(44,35,24,0.06);
-  --shadow-sm: 0 4px 12px rgba(44,35,24,0.08);
-  --shadow-md: 0 10px 24px rgba(44,35,24,0.12);
-  --shadow-lg: 0 22px 55px rgba(44,35,24,0.16);
-
-  /* Radius */
-  --radius-sm: 5px;
-  --radius: 8px;
-  --radius-lg: 12px;
-
-  /* Typography */
-  --font-sans: "Avenir Next", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-display: "Georgia", "Noto Serif SC", "Songti SC", serif;
-  --font-mono: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  color-scheme: light;
+  --bg-base: #f4f6f9;
+  --bg-surface: #fbfcfe;
+  --bg-elevated: #eef2f7;
+  --bg-hover: #e8edf4;
+  --surface: #fbfcfe;
+  --surface-subtle: #f7f9fc;
+  --surface-strong: #edf1f6;
+  --brand: #315ee7;
+  --brand-deep: #2448bd;
+  --brand-light: #e8edff;
+  --brand-soft: #f1f4ff;
+  --brand-gradient: #315ee7;
+  --todo: #b76e14;
+  --todo-bg: #fff6e8;
+  --progress: #2f6fc2;
+  --progress-bg: #edf5ff;
+  --done: #287a58;
+  --done-bg: #eaf7f0;
+  --danger: #bd4747;
+  --danger-bg: #fff0f0;
+  --text-primary: #172033;
+  --text-secondary: #4f5c70;
+  --text-tertiary: #778296;
+  --text-disabled: #a4acb9;
+  --border: #dbe1ea;
+  --border-light: #e7ebf1;
+  --border-strong: #c8d0dd;
+  --focus-ring: rgba(49, 94, 231, 0.22);
+  --shadow-xs: 0 1px 2px rgba(25, 42, 70, 0.05);
+  --shadow-sm: 0 8px 20px rgba(25, 42, 70, 0.07);
+  --shadow-md: 0 16px 36px rgba(25, 42, 70, 0.1);
+  --shadow-lg: 0 28px 64px rgba(25, 42, 70, 0.14);
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --control-height: 36px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --el-color-primary: #315ee7;
+  --el-color-primary-light-3: #6484ed;
+  --el-color-primary-light-5: #8fa5f3;
+  --el-color-primary-light-7: #bbc8f8;
+  --el-color-primary-light-8: #d2dafb;
+  --el-color-primary-light-9: #e8edff;
+  --el-color-primary-dark-2: #2448bd;
+  --el-border-radius-base: 8px;
+  --el-border-color: #dbe1ea;
+  --el-border-color-light: #e7ebf1;
+  --el-fill-color-blank: #fbfcfe;
+  --el-bg-color: #fbfcfe;
+  --el-text-color-primary: #172033;
+  --el-text-color-regular: #4f5c70;
+  --el-text-color-secondary: #778296;
 }
 
-/* Global reset */
-*,
-*::before,
-*::after { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #app { min-width: 0; min-height: 100%; }
+html { background: var(--bg-base); }
 body {
   margin: 0;
+  min-width: 320px;
+  overflow-x: hidden;
   font-family: var(--font-sans);
   font-size: 14px;
+  line-height: 1.5;
   color: var(--text-primary);
-  background:
-    radial-gradient(circle at 12% 8%, rgba(213,138,34,0.08), transparent 28%),
-    radial-gradient(circle at 88% 92%, rgba(40,36,30,0.05), transparent 30%),
-    var(--bg-base);
+  background: var(--bg-base);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+button, input, textarea, select { font: inherit; }
+button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+::selection { color: var(--text-primary); background: #cfd9ff; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: #c4ccd9; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
 
-/* Element Plus controls inherit the same restrained editorial language. */
-.el-button { border-radius: var(--radius-sm); font-weight: 600; }
-.el-button--primary { background: var(--brand); border-color: var(--brand); }
-.el-button--primary:hover, .el-button--primary:focus { background: var(--brand-deep); border-color: var(--brand-deep); }
-.el-dialog { border-radius: var(--radius-lg); background: var(--bg-surface); }
-.el-input__wrapper, .el-textarea__inner { border-radius: var(--radius-sm); }
+.el-button {
+  min-height: 34px;
+  border-radius: var(--radius-sm);
+  font-weight: 620;
+  transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, transform 120ms ease;
+}
+.el-button:active:not(.is-disabled) { transform: translateY(1px); }
+.el-button--primary { color: #f8faff; background: var(--brand); border-color: var(--brand); }
+.el-button--primary:hover, .el-button--primary:focus-visible { color: #f8faff; background: var(--brand-deep); border-color: var(--brand-deep); }
+.el-dialog, .el-drawer { background: var(--surface); }
+.el-dialog { max-width: calc(100vw - 32px); border: 1px solid var(--border-light); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+.el-dialog__header { margin-right: 0; padding: 22px 24px 12px; }
+.el-dialog__body { padding: 14px 24px 22px; }
+.el-dialog__footer { padding: 12px 24px 22px; }
+.el-input__wrapper, .el-select__wrapper, .el-textarea__inner, .el-date-editor.el-input__wrapper, .el-input-number {
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border) inset;
+}
+.el-input__wrapper:hover, .el-select__wrapper:hover, .el-textarea__inner:hover { box-shadow: 0 0 0 1px var(--border-strong) inset; }
+.el-input__wrapper.is-focus, .el-select__wrapper.is-focused, .el-textarea__inner:focus { box-shadow: 0 0 0 1px var(--brand) inset, 0 0 0 3px var(--focus-ring); }
+.el-dropdown-menu { padding: 6px; border: 1px solid var(--border-light); border-radius: 10px; box-shadow: var(--shadow-md); }
+.el-dropdown-menu__item { min-height: 36px; border-radius: 7px; }
+.el-table {
+  --el-table-bg-color: var(--surface);
+  --el-table-tr-bg-color: var(--surface);
+  --el-table-header-bg-color: var(--surface-subtle);
+  --el-table-row-hover-bg-color: var(--brand-soft);
+  --el-table-border-color: var(--border-light);
+  --el-table-text-color: var(--text-secondary);
+  --el-table-header-text-color: var(--text-tertiary);
+}
+.el-table th.el-table__cell { font-size: 12px; font-weight: 650; }
+.el-tag { border-radius: 999px; font-weight: 600; }
+.el-overlay { background: rgba(21, 31, 50, 0.42); }
+.input-group { display: grid; gap: 7px; }
+.input-group > label { color: var(--text-secondary); font-size: 13px; font-weight: 620; }
+.optional, .form-hint { color: var(--text-tertiary); font-size: 12px; font-weight: 400; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+@media (max-width: 640px) {
+  .el-dialog__header { padding: 20px 18px 10px; }
+  .el-dialog__body { padding: 12px 18px 18px; }
+  .el-dialog__footer { padding: 10px 18px 18px; }
+}
